@@ -1,0 +1,1979 @@
+-- Heaven HUD | Murder Mystery 2 Full UI & Framework
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local Stats = game:GetService("Stats")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = Workspace.CurrentCamera
+
+if PlayerGui:FindFirstChild("HeavenHUD") then
+	PlayerGui.HeavenHUD:Destroy()
+end
+
+local DiscordInviteUrl = "https://discord.gg/TgpqVgWmt"
+
+local function safeTouch(part, root)
+	if not part or not root or not part:IsA("BasePart") then return end
+	if typeof(firetouchinterest) == "function" then
+		pcall(function()
+			firetouchinterest(root, part, 0)
+			firetouchinterest(root, part, 1)
+		end)
+	elseif (part.Position - root.Position).Magnitude <= 8 then
+		pcall(function()
+			part.CFrame = root.CFrame
+		end)
+	end
+end
+
+local function detectExecutorName()
+	if typeof(identifyexecutor) == "function" then
+		local ok, name = pcall(identifyexecutor)
+		if ok and type(name) == "string" and name ~= "" then
+			return name
+		end
+	end
+	if typeof(getexecutorname) == "function" then
+		local ok, name = pcall(getexecutorname)
+		if ok and type(name) == "string" and name ~= "" then
+			return name
+		end
+	end
+	return "Desconocido"
+end
+
+local function copyToClipboard(text)
+	if typeof(setclipboard) == "function" then
+		local ok = pcall(setclipboard, text)
+		if ok then return true end
+	end
+	if typeof(toclipboard) == "function" then
+		local ok = pcall(toclipboard, text)
+		if ok then return true end
+	end
+	if typeof(set_clipboard) == "function" then
+		local ok = pcall(set_clipboard, text)
+		if ok then return true end
+	end
+	return false
+end
+
+local function getCurrentPingMs()
+	local pingVal = 0
+	pcall(function()
+		local net = Stats:FindFirstChild("Network")
+		local serverStats = net and net:FindFirstChild("ServerStats")
+		local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
+		if dataPing and typeof(dataPing.GetValue) == "function" then
+			pingVal = tonumber(dataPing:GetValue()) or 0
+		elseif dataPing and dataPing.Value then
+			pingVal = tonumber(dataPing.Value) or 0
+		end
+	end)
+	if pingVal <= 0 then
+		pcall(function()
+			pingVal = (LocalPlayer:GetNetworkPing() or 0) * 2000
+		end)
+	end
+	return math.clamp(math.floor(pingVal + 0.5), 0, 9999)
+end
+
+local Themes = {
+	{
+		Name = "Obsidian Dark",
+		MainBg = Color3.fromRGB(18, 18, 21),
+		SidebarBg = Color3.fromRGB(13, 13, 16),
+		CardBg = Color3.fromRGB(28, 28, 33),
+		Border = Color3.fromRGB(48, 48, 56),
+		TextPrimary = Color3.fromRGB(245, 245, 248),
+		TextSecondary = Color3.fromRGB(165, 165, 178),
+		ToggleOffBg = Color3.fromRGB(68, 68, 76),
+		ToggleOnBg = Color3.fromRGB(52, 199, 89),
+		KnobColor = Color3.fromRGB(255, 255, 255),
+		ActiveTabBg = Color3.fromRGB(38, 40, 48),
+		AccentBtn = Color3.fromRGB(10, 132, 255),
+		SliderTrack = Color3.fromRGB(58, 58, 66),
+		SliderFill = Color3.fromRGB(10, 132, 255),
+		PillGradStart = Color3.fromRGB(185, 110, 255),
+		PillGradEnd = Color3.fromRGB(10, 132, 255)
+	},
+	{
+		Name = "Heaven Frost",
+		MainBg = Color3.fromRGB(16, 22, 30),
+		SidebarBg = Color3.fromRGB(12, 17, 24),
+		CardBg = Color3.fromRGB(25, 34, 46),
+		Border = Color3.fromRGB(46, 62, 84),
+		TextPrimary = Color3.fromRGB(240, 246, 255),
+		TextSecondary = Color3.fromRGB(156, 176, 204),
+		ToggleOffBg = Color3.fromRGB(56, 70, 92),
+		ToggleOnBg = Color3.fromRGB(56, 189, 248),
+		KnobColor = Color3.fromRGB(255, 255, 255),
+		ActiveTabBg = Color3.fromRGB(34, 47, 65),
+		AccentBtn = Color3.fromRGB(56, 189, 248),
+		SliderTrack = Color3.fromRGB(52, 66, 88),
+		SliderFill = Color3.fromRGB(56, 189, 248),
+		PillGradStart = Color3.fromRGB(56, 189, 248),
+		PillGradEnd = Color3.fromRGB(129, 140, 248)
+	},
+	{
+		Name = "Crimson Night",
+		MainBg = Color3.fromRGB(23, 16, 18),
+		SidebarBg = Color3.fromRGB(17, 12, 14),
+		CardBg = Color3.fromRGB(35, 24, 28),
+		Border = Color3.fromRGB(64, 42, 48),
+		TextPrimary = Color3.fromRGB(250, 242, 244),
+		TextSecondary = Color3.fromRGB(186, 155, 164),
+		ToggleOffBg = Color3.fromRGB(74, 52, 58),
+		ToggleOnBg = Color3.fromRGB(255, 55, 95),
+		KnobColor = Color3.fromRGB(255, 255, 255),
+		ActiveTabBg = Color3.fromRGB(48, 32, 38),
+		AccentBtn = Color3.fromRGB(255, 55, 95),
+		SliderTrack = Color3.fromRGB(68, 48, 54),
+		SliderFill = Color3.fromRGB(255, 55, 95),
+		PillGradStart = Color3.fromRGB(255, 55, 95),
+		PillGradEnd = Color3.fromRGB(192, 132, 252)
+	},
+	{
+		Name = "Emerald Slate",
+		MainBg = Color3.fromRGB(15, 23, 20),
+		SidebarBg = Color3.fromRGB(11, 18, 16),
+		CardBg = Color3.fromRGB(24, 36, 32),
+		Border = Color3.fromRGB(44, 66, 58),
+		TextPrimary = Color3.fromRGB(240, 250, 246),
+		TextSecondary = Color3.fromRGB(152, 182, 170),
+		ToggleOffBg = Color3.fromRGB(53, 73, 66),
+		ToggleOnBg = Color3.fromRGB(48, 209, 88),
+		KnobColor = Color3.fromRGB(255, 255, 255),
+		ActiveTabBg = Color3.fromRGB(33, 49, 44),
+		AccentBtn = Color3.fromRGB(48, 209, 88),
+		SliderTrack = Color3.fromRGB(49, 69, 62),
+		SliderFill = Color3.fromRGB(48, 209, 88),
+		PillGradStart = Color3.fromRGB(48, 209, 88),
+		PillGradEnd = Color3.fromRGB(56, 189, 248)
+	}
+}
+
+local MapsList = { "House", "Factory", "Office", "Bank", "Mil Base", "Bio Lab" }
+local ConfigFileName = "HeavenHUD_Config.json"
+local MemoryConfigBackup = nil
+
+local State = {
+	ThemeIndex = 1,
+	SpeedEnabled = false,
+	CustomSpeed = 28,
+	DefaultSpeed = 16,
+	InfinityJump = false,
+	ESPPlayers = true,
+	ESPRoles = false,
+	ESPGunDrop = false,
+	CamLockEnabled = false,
+	AutoShotMurder = false,
+	SilentAimAccuracy = 100,
+	AutoGrabGun = true,
+	FarmCoins = false,
+	FPSBoost = false,
+	FlyEnabled = false,
+	FlySpeed = 50,
+	AntiAFK = false,
+	HitboxExpander = false,
+	HitboxSize = 12,
+	HitboxTransparency = 0.65,
+	SelectedMapIndex = 1,
+	AutoVoteMap = false
+}
+
+local LightingBackup = {
+	GlobalShadows = Lighting.GlobalShadows,
+	Brightness = Lighting.Brightness,
+	EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
+	EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale
+}
+
+local function applyFPSBoost(enabled)
+	State.FPSBoost = enabled
+	pcall(function()
+		if enabled then
+			Lighting.GlobalShadows = false
+			Lighting.EnvironmentSpecularScale = 0
+			Lighting.EnvironmentDiffuseScale = 0
+			if settings and settings():FindFirstChild("Rendering") then
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+			end
+		else
+			Lighting.GlobalShadows = LightingBackup.GlobalShadows
+			Lighting.EnvironmentSpecularScale = LightingBackup.EnvironmentSpecularScale
+			Lighting.EnvironmentDiffuseScale = LightingBackup.EnvironmentDiffuseScale
+			if settings and settings():FindFirstChild("Rendering") then
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+			end
+		end
+	end)
+end
+
+local Theme = {}
+for k, v in pairs(Themes[State.ThemeIndex]) do
+	Theme[k] = v
+end
+
+local UIRegistry = {
+	MainBg = {},
+	SidebarBg = {},
+	CardBg = {},
+	Border = {},
+	TextPrimary = {},
+	TextSecondary = {},
+	AccentBtn = {},
+	SliderTrack = {},
+	SliderFill = {},
+	KnobColor = {},
+	ToggleOnBg = {},
+	ToggleOffBg = {}
+}
+
+local RainbowStrokes = {}
+
+local function attachRainbowBorder(targetInstance, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Thickness = thickness or 1.6
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = targetInstance
+
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 59, 92)),
+		ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255, 165, 0)),
+		ColorSequenceKeypoint.new(0.40, Color3.fromRGB(52, 211, 153)),
+		ColorSequenceKeypoint.new(0.60, Color3.fromRGB(56, 189, 248)),
+		ColorSequenceKeypoint.new(0.80, Color3.fromRGB(168, 85, 247)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 59, 92))
+	})
+	grad.Parent = stroke
+
+	table.insert(RainbowStrokes, { stroke = stroke, gradient = grad })
+	return stroke, grad
+end
+
+local function registerColor(inst, prop, role)
+	if not inst or not role or not Theme[role] then return end
+	if not UIRegistry[role] then
+		UIRegistry[role] = {}
+	end
+	table.insert(UIRegistry[role], { obj = inst, prop = prop })
+	inst[prop] = Theme[role]
+end
+
+local function addCorner(instance, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 10)
+	corner.Parent = instance
+	return corner
+end
+
+local function addStroke(instance, role, thickness)
+	local stroke = Instance.new("UIStroke")
+	local r = UIRegistry[role] and role or "Border"
+	stroke.Color = Theme[r]
+	stroke.Thickness = thickness or 1
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = instance
+	registerColor(stroke, "Color", r)
+	return stroke
+end
+
+local function addIOSPressEffect(btn, scaleAmount)
+	local pressScale = scaleAmount or 0.96
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1
+	uiScale.Parent = btn
+
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(uiScale, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Scale = pressScale
+		}):Play()
+	end)
+
+	local function release()
+		TweenService:Create(uiScale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1
+		}):Play()
+	end
+
+	btn.MouseButton1Up:Connect(release)
+	btn.MouseLeave:Connect(release)
+end
+
+local function makeDraggable(dragHandle, targetFrame, onMoved)
+	local dragging = false
+	local dragStart, startPos
+
+	dragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = targetFrame.Position
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			targetFrame.Position = UDim2.new(
+				startPos.X.Scale, startPos.X.Offset + delta.X,
+				startPos.Y.Scale, startPos.Y.Offset + delta.Y
+			)
+			if onMoved then onMoved(targetFrame.Position) end
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+local DynamicControls = {}
+local ActiveTabName = "Home"
+local Tabs = {}
+local TabButtons = {}
+local TabAccents = {}
+
+local function selectTab(name)
+	ActiveTabName = name
+	for tabName, p in pairs(Tabs) do
+		local active = (tabName == name)
+		p.Visible = active
+		local btn = TabButtons[tabName]
+		local bar = TabAccents[tabName]
+		if btn then
+			TweenService:Create(btn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundTransparency = active and 0 or 1,
+				BackgroundColor3 = active and Theme.ActiveTabBg or Theme.SidebarBg,
+				TextColor3 = active and Theme.TextPrimary or Theme.TextSecondary
+			}):Play()
+		end
+		if bar then
+			bar.Visible = active
+			bar.BackgroundColor3 = Theme.AccentBtn
+		end
+	end
+end
+
+local function applyTheme(themeIndex)
+	themeIndex = math.clamp(themeIndex or 1, 1, #Themes)
+	State.ThemeIndex = themeIndex
+	local chosen = Themes[themeIndex]
+	for k, v in pairs(chosen) do
+		Theme[k] = v
+	end
+
+	for role, entries in pairs(UIRegistry) do
+		local targetColor = Theme[role]
+		if targetColor then
+			for _, entry in ipairs(entries) do
+				if entry.obj and entry.obj.Parent then
+					pcall(function()
+						entry.obj[entry.prop] = targetColor
+					end)
+				end
+			end
+		end
+	end
+
+	selectTab(ActiveTabName)
+
+	for _, ctrl in ipairs(DynamicControls) do
+		if ctrl.refreshTheme then
+			pcall(ctrl.refreshTheme)
+		end
+	end
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "HeavenHUD"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- Cápsula minimizada estilo iOS Dynamic Pill con borde rainbow
+local MiniPill = Instance.new("Frame")
+MiniPill.Name = "MiniPill"
+MiniPill.Size = UDim2.new(0, 310, 0, 44)
+MiniPill.Position = UDim2.new(0.5, -155, 0.14, 0)
+MiniPill.BorderSizePixel = 0
+MiniPill.Visible = false
+MiniPill.Parent = ScreenGui
+addCorner(MiniPill, 22)
+registerColor(MiniPill, "BackgroundColor3", "MainBg")
+attachRainbowBorder(MiniPill, 1.8)
+
+local PillBadge = Instance.new("Frame")
+PillBadge.Size = UDim2.new(0, 26, 0, 26)
+PillBadge.Position = UDim2.new(0, 9, 0.5, -13)
+PillBadge.BorderSizePixel = 0
+PillBadge.Parent = MiniPill
+addCorner(PillBadge, 13)
+registerColor(PillBadge, "BackgroundColor3", "AccentBtn")
+
+local PillLogoIcon = Instance.new("TextLabel")
+PillLogoIcon.Size = UDim2.new(1, 0, 1, 0)
+PillLogoIcon.BackgroundTransparency = 1
+PillLogoIcon.Text = "H"
+PillLogoIcon.TextSize = 13
+PillLogoIcon.Font = Enum.Font.GothamBold
+PillLogoIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+PillLogoIcon.Parent = PillBadge
+
+local PillTitle = Instance.new("TextLabel")
+PillTitle.Size = UDim2.new(1, -84, 0, 16)
+PillTitle.Position = UDim2.new(0, 43, 0, 6)
+PillTitle.BackgroundTransparency = 1
+PillTitle.Text = "Murder Mystery 2  •  Heaven HUD"
+PillTitle.TextSize = 12
+PillTitle.Font = Enum.Font.GothamBold
+PillTitle.TextXAlignment = Enum.TextXAlignment.Left
+PillTitle.TextTruncate = Enum.TextTruncate.AtEnd
+PillTitle.Parent = MiniPill
+registerColor(PillTitle, "TextColor3", "TextPrimary")
+
+local PillSubTitle = Instance.new("TextLabel")
+PillSubTitle.Size = UDim2.new(1, -84, 0, 13)
+PillSubTitle.Position = UDim2.new(0, 43, 0, 23)
+PillSubTitle.BackgroundTransparency = 1
+PillSubTitle.Text = "by heaven"
+PillSubTitle.TextSize = 10
+PillSubTitle.Font = Enum.Font.GothamMedium
+PillSubTitle.TextXAlignment = Enum.TextXAlignment.Left
+PillSubTitle.Parent = MiniPill
+registerColor(PillSubTitle, "TextColor3", "TextSecondary")
+
+local ExpandBtn = Instance.new("TextButton")
+ExpandBtn.Name = "ExpandBtn"
+ExpandBtn.Size = UDim2.new(0, 28, 0, 28)
+ExpandBtn.Position = UDim2.new(1, -36, 0.5, -14)
+ExpandBtn.Text = "+"
+ExpandBtn.TextSize = 16
+ExpandBtn.Font = Enum.Font.GothamBold
+ExpandBtn.AutoButtonColor = true
+ExpandBtn.Parent = MiniPill
+addCorner(ExpandBtn, 14)
+addIOSPressEffect(ExpandBtn, 0.9)
+registerColor(ExpandBtn, "BackgroundColor3", "CardBg")
+registerColor(ExpandBtn, "TextColor3", "TextPrimary")
+
+-- Ventana principal con borde rainbow
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 640, 0, 396)
+MainFrame.Position = UDim2.new(0.5, -320, 0.5, -198)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+addCorner(MainFrame, 16)
+registerColor(MainFrame, "BackgroundColor3", "MainBg")
+attachRainbowBorder(MainFrame, 2.0)
+
+local function minimizeToPill()
+	MainFrame.Visible = false
+	MiniPill.Position = UDim2.new(
+		MainFrame.Position.X.Scale,
+		MainFrame.Position.X.Offset + math.floor((MainFrame.Size.X.Offset - MiniPill.Size.X.Offset) * 0.5),
+		MainFrame.Position.Y.Scale,
+		MainFrame.Position.Y.Offset
+	)
+	MiniPill.Visible = true
+end
+
+local function restoreFromPill()
+	MiniPill.Visible = false
+	MainFrame.Position = UDim2.new(
+		MiniPill.Position.X.Scale,
+		MiniPill.Position.X.Offset - math.floor((MainFrame.Size.X.Offset - MiniPill.Size.X.Offset) * 0.5),
+		MiniPill.Position.Y.Scale,
+		MiniPill.Position.Y.Offset
+	)
+	MainFrame.Visible = true
+end
+
+ExpandBtn.MouseButton1Click:Connect(restoreFromPill)
+makeDraggable(MiniPill, MiniPill)
+
+-- Header estilo iOS con título pequeño "by heaven"
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 48)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+registerColor(TopBar, "BackgroundColor3", "SidebarBg")
+
+local TopDivider = Instance.new("Frame")
+TopDivider.Size = UDim2.new(1, 0, 0, 1)
+TopDivider.Position = UDim2.new(0, 0, 1, -1)
+TopDivider.BorderSizePixel = 0
+TopDivider.Parent = TopBar
+registerColor(TopDivider, "BackgroundColor3", "Border")
+
+local TopBadge = Instance.new("Frame")
+TopBadge.Size = UDim2.new(0, 26, 0, 26)
+TopBadge.Position = UDim2.new(0, 14, 0.5, -13)
+TopBadge.BorderSizePixel = 0
+TopBadge.Parent = TopBar
+addCorner(TopBadge, 13)
+registerColor(TopBadge, "BackgroundColor3", "AccentBtn")
+
+local TitleIcon = Instance.new("TextLabel")
+TitleIcon.Size = UDim2.new(1, 0, 1, 0)
+TitleIcon.BackgroundTransparency = 1
+TitleIcon.Text = "H"
+TitleIcon.TextSize = 12
+TitleIcon.Font = Enum.Font.GothamBold
+TitleIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleIcon.Parent = TopBadge
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -155, 0, 18)
+TitleLabel.Position = UDim2.new(0, 48, 0, 8)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Murder Mystery 2  •  Heaven HUD"
+TitleLabel.TextSize = 14
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TopBar
+registerColor(TitleLabel, "TextColor3", "TextPrimary")
+
+local SubTitleLabel = Instance.new("TextLabel")
+SubTitleLabel.Size = UDim2.new(1, -155, 0, 14)
+SubTitleLabel.Position = UDim2.new(0, 48, 0, 26)
+SubTitleLabel.BackgroundTransparency = 1
+SubTitleLabel.Text = "by heaven"
+SubTitleLabel.TextSize = 10
+SubTitleLabel.Font = Enum.Font.GothamMedium
+SubTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubTitleLabel.Parent = TopBar
+registerColor(SubTitleLabel, "TextColor3", "TextSecondary")
+
+local ControlsHolder = Instance.new("Frame")
+ControlsHolder.Size = UDim2.new(0, 96, 1, 0)
+ControlsHolder.Position = UDim2.new(1, -104, 0, 0)
+ControlsHolder.BackgroundTransparency = 1
+ControlsHolder.Parent = TopBar
+
+local function makeWinBtn(text, posX, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 28, 0, 28)
+	btn.Position = UDim2.new(0, posX, 0.5, -14)
+	btn.Text = text
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamBold
+	btn.AutoButtonColor = true
+	btn.Parent = ControlsHolder
+	addCorner(btn, 14)
+	addIOSPressEffect(btn, 0.9)
+	registerColor(btn, "BackgroundColor3", "CardBg")
+	registerColor(btn, "TextColor3", "TextPrimary")
+	btn.MouseButton1Click:Connect(callback)
+	return btn
+end
+
+local normalSize = MainFrame.Size
+
+makeWinBtn("-", 0, minimizeToPill)
+
+makeWinBtn("[]", 33, function()
+	MainFrame.Size = normalSize
+	MainFrame.Position = UDim2.new(0.5, -320, 0.5, -198)
+end)
+
+makeWinBtn("X", 66, function()
+	ScreenGui:Destroy()
+end)
+
+makeDraggable(TopBar, MainFrame)
+
+-- Cuerpo principal
+local BodyFrame = Instance.new("Frame")
+BodyFrame.Size = UDim2.new(1, 0, 1, -48)
+BodyFrame.Position = UDim2.new(0, 0, 0, 48)
+BodyFrame.BackgroundTransparency = 1
+BodyFrame.ClipsDescendants = true
+BodyFrame.Parent = MainFrame
+
+local Sidebar = Instance.new("ScrollingFrame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 182, 1, 0)
+Sidebar.BorderSizePixel = 0
+Sidebar.ScrollBarThickness = 2
+Sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
+Sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Sidebar.Parent = BodyFrame
+registerColor(Sidebar, "BackgroundColor3", "SidebarBg")
+
+local SideDivider = Instance.new("Frame")
+SideDivider.Size = UDim2.new(0, 1, 1, 0)
+SideDivider.Position = UDim2.new(0, 181, 0, 0)
+SideDivider.BorderSizePixel = 0
+SideDivider.Parent = BodyFrame
+registerColor(SideDivider, "BackgroundColor3", "Border")
+
+local SideListLayout = Instance.new("UIListLayout")
+SideListLayout.Padding = UDim.new(0, 5)
+SideListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SideListLayout.Parent = Sidebar
+
+local SidePadding = Instance.new("UIPadding")
+SidePadding.PaddingTop = UDim.new(0, 10)
+SidePadding.PaddingLeft = UDim.new(0, 8)
+SidePadding.PaddingRight = UDim.new(0, 8)
+SidePadding.PaddingBottom = UDim.new(0, 10)
+SidePadding.Parent = Sidebar
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, -182, 1, 0)
+ContentArea.Position = UDim2.new(0, 182, 0, 0)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = BodyFrame
+
+local function createTab(name, tag, order)
+	local tabButton = Instance.new("TextButton")
+	tabButton.Name = name .. "TabBtn"
+	tabButton.Size = UDim2.new(1, 0, 0, 36)
+	tabButton.BackgroundTransparency = 1
+	tabButton.Text = "    [" .. tag .. "]  " .. name
+	tabButton.TextSize = 12
+	tabButton.Font = Enum.Font.GothamMedium
+	tabButton.TextXAlignment = Enum.TextXAlignment.Left
+	tabButton.LayoutOrder = order
+	tabButton.AutoButtonColor = false
+	tabButton.Parent = Sidebar
+	addCorner(tabButton, 10)
+	addIOSPressEffect(tabButton, 0.97)
+	registerColor(tabButton, "TextColor3", "TextSecondary")
+
+	local activeIndicator = Instance.new("Frame")
+	activeIndicator.Size = UDim2.new(0, 3, 0, 18)
+	activeIndicator.Position = UDim2.new(0, 4, 0.5, -9)
+	activeIndicator.BorderSizePixel = 0
+	activeIndicator.Visible = false
+	activeIndicator.Parent = tabButton
+	addCorner(activeIndicator, 2)
+	registerColor(activeIndicator, "BackgroundColor3", "AccentBtn")
+
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name .. "Page"
+	page.Size = UDim2.new(1, 0, 1, 0)
+	page.BackgroundTransparency = 1
+	page.ScrollBarThickness = 3
+	page.CanvasSize = UDim2.new(0, 0, 0, 0)
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.Visible = false
+	page.Parent = ContentArea
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 9)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 12)
+	pad.PaddingLeft = UDim.new(0, 14)
+	pad.PaddingRight = UDim.new(0, 14)
+	pad.PaddingBottom = UDim.new(0, 14)
+	pad.Parent = page
+
+	tabButton.MouseButton1Click:Connect(function()
+		selectTab(name)
+	end)
+
+	Tabs[name] = page
+	TabButtons[name] = tabButton
+	TabAccents[name] = activeIndicator
+	return page
+end
+
+local function createToggleCard(parent, title, subtitle, initialState, onChanged)
+	local hasSub = subtitle and subtitle ~= ""
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, hasSub and 62 or 50)
+	card.BorderSizePixel = 0
+	card.Parent = parent
+	addCorner(card, 12)
+	addStroke(card, "Border", 1)
+	registerColor(card, "BackgroundColor3", "CardBg")
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -86, 0, 20)
+	titleLbl.Position = UDim2.new(0, 14, 0, hasSub and 9 or 15)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = title
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamMedium
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = card
+	registerColor(titleLbl, "TextColor3", "TextPrimary")
+
+	if hasSub then
+		local subLbl = Instance.new("TextLabel")
+		subLbl.Size = UDim2.new(1, -86, 0, 16)
+		subLbl.Position = UDim2.new(0, 14, 0, 31)
+		subLbl.BackgroundTransparency = 1
+		subLbl.Text = subtitle
+		subLbl.TextSize = 11
+		subLbl.Font = Enum.Font.Gotham
+		subLbl.TextXAlignment = Enum.TextXAlignment.Left
+		subLbl.Parent = card
+		registerColor(subLbl, "TextColor3", "TextSecondary")
+	end
+
+	local switchBtn = Instance.new("TextButton")
+	switchBtn.Size = UDim2.new(0, 50, 0, 28)
+	switchBtn.Position = UDim2.new(1, -64, 0.5, -14)
+	switchBtn.Text = ""
+	switchBtn.AutoButtonColor = false
+	switchBtn.Parent = card
+	addCorner(switchBtn, 14)
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.new(0, 22, 0, 22)
+	knob.BorderSizePixel = 0
+	knob.Parent = switchBtn
+	addCorner(knob, 11)
+	registerColor(knob, "BackgroundColor3", "KnobColor")
+
+	local enabled = initialState
+
+	local function refreshVisual(instant)
+		local tweenInfo = TweenInfo.new(instant and 0 or 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(switchBtn, TweenInfo.new(instant and 0 or 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = enabled and Theme.ToggleOnBg or Theme.ToggleOffBg
+		}):Play()
+		TweenService:Create(knob, tweenInfo, {
+			Position = enabled and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11)
+		}):Play()
+	end
+
+	refreshVisual(true)
+
+	switchBtn.MouseButton1Click:Connect(function()
+		enabled = not enabled
+		refreshVisual(false)
+		if onChanged then
+			onChanged(enabled)
+		end
+	end)
+
+	local api = {
+		setValue = function(val, fireCallback)
+			enabled = not not val
+			refreshVisual(true)
+			if fireCallback and onChanged then
+				onChanged(enabled)
+			end
+		end,
+		refreshTheme = function()
+			refreshVisual(true)
+		end
+	}
+	table.insert(DynamicControls, api)
+	return card, api
+end
+
+local function createSliderCard(parent, title, minVal, maxVal, initialVal, decimals, onChanged)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, 50)
+	card.BorderSizePixel = 0
+	card.Parent = parent
+	addCorner(card, 12)
+	addStroke(card, "Border", 1)
+	registerColor(card, "BackgroundColor3", "CardBg")
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(0, 165, 1, 0)
+	titleLbl.Position = UDim2.new(0, 14, 0, 0)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = title
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamMedium
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = card
+	registerColor(titleLbl, "TextColor3", "TextPrimary")
+
+	local function formatValue(v)
+		if decimals and decimals > 0 then
+			return string.format("%." .. tostring(decimals) .. "f", v)
+		end
+		return tostring(math.floor(v + 0.5))
+	end
+
+	local valLbl = Instance.new("TextLabel")
+	valLbl.Size = UDim2.new(0, 44, 1, 0)
+	valLbl.Position = UDim2.new(1, -182, 0, 0)
+	valLbl.BackgroundTransparency = 1
+	valLbl.Text = formatValue(initialVal)
+	valLbl.TextSize = 12
+	valLbl.Font = Enum.Font.GothamBold
+	valLbl.TextXAlignment = Enum.TextXAlignment.Right
+	valLbl.Parent = card
+	registerColor(valLbl, "TextColor3", "TextSecondary")
+
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(0, 118, 0, 6)
+	track.Position = UDim2.new(1, -130, 0.5, -3)
+	track.BorderSizePixel = 0
+	track.Parent = card
+	addCorner(track, 3)
+	registerColor(track, "BackgroundColor3", "SliderTrack")
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+	addCorner(fill, 3)
+	registerColor(fill, "BackgroundColor3", "SliderFill")
+
+	local thumb = Instance.new("TextButton")
+	thumb.Size = UDim2.new(0, 16, 0, 16)
+	thumb.Position = UDim2.new(0, -8, 0.5, -8)
+	thumb.Text = ""
+	thumb.AutoButtonColor = false
+	thumb.Parent = track
+	addCorner(thumb, 8)
+	registerColor(thumb, "BackgroundColor3", "KnobColor")
+
+	local currentVal = initialVal
+	local sliding = false
+
+	local function setValue(raw, fireCallback)
+		raw = math.clamp(raw, minVal, maxVal)
+		if not decimals or decimals == 0 then
+			raw = math.floor(raw + 0.5)
+		else
+			local mult = 10 ^ decimals
+			raw = math.floor(raw * mult + 0.5) / mult
+		end
+		currentVal = raw
+		local realAlpha = (currentVal - minVal) / (maxVal - minVal)
+		fill.Size = UDim2.new(realAlpha, 0, 1, 0)
+		thumb.Position = UDim2.new(realAlpha, -8, 0.5, -8)
+		valLbl.Text = formatValue(currentVal)
+		if fireCallback and onChanged then
+			onChanged(currentVal)
+		end
+	end
+
+	setValue(initialVal, false)
+
+	local function updateFromInput(inputPos)
+		local absX = track.AbsolutePosition.X
+		local absW = track.AbsoluteSize.X
+		if absW > 0 then
+			local alpha = math.clamp((inputPos.X - absX) / absW, 0, 1)
+			setValue(minVal + (maxVal - minVal) * alpha, true)
+		end
+	end
+
+	track.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			sliding = true
+			updateFromInput(input.Position)
+		end
+	end)
+
+	thumb.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			sliding = true
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			updateFromInput(input.Position)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			sliding = false
+		end
+	end)
+
+	local api = {
+		setValue = function(v, fireCallback)
+			setValue(v, fireCallback)
+		end
+	}
+	table.insert(DynamicControls, api)
+	return card, api
+end
+
+local function createSelectorCard(parent, title, options, initialIndex, onChanged)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, 50)
+	card.BorderSizePixel = 0
+	card.Parent = parent
+	addCorner(card, 12)
+	addStroke(card, "Border", 1)
+	registerColor(card, "BackgroundColor3", "CardBg")
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(0, 160, 1, 0)
+	titleLbl.Position = UDim2.new(0, 14, 0, 0)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = title
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamMedium
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = card
+	registerColor(titleLbl, "TextColor3", "TextPrimary")
+
+	local selectBtn = Instance.new("TextButton")
+	selectBtn.Size = UDim2.new(0, 210, 0, 32)
+	selectBtn.Position = UDim2.new(1, -222, 0.5, -16)
+	selectBtn.Text = ""
+	selectBtn.AutoButtonColor = true
+	selectBtn.Parent = card
+	addCorner(selectBtn, 16)
+	addStroke(selectBtn, "Border", 1)
+	addIOSPressEffect(selectBtn, 0.96)
+	registerColor(selectBtn, "BackgroundColor3", "SidebarBg")
+
+	local idx = math.clamp(initialIndex or 1, 1, #options)
+
+	local valLbl = Instance.new("TextLabel")
+	valLbl.Size = UDim2.new(1, -30, 1, 0)
+	valLbl.Position = UDim2.new(0, 12, 0, 0)
+	valLbl.BackgroundTransparency = 1
+	valLbl.Text = options[idx]
+	valLbl.TextSize = 12
+	valLbl.Font = Enum.Font.GothamBold
+	valLbl.TextXAlignment = Enum.TextXAlignment.Left
+	valLbl.Parent = selectBtn
+	registerColor(valLbl, "TextColor3", "TextPrimary")
+
+	local chevLbl = Instance.new("TextLabel")
+	chevLbl.Size = UDim2.new(0, 24, 1, 0)
+	chevLbl.Position = UDim2.new(1, -24, 0, 0)
+	chevLbl.BackgroundTransparency = 1
+	chevLbl.Text = "< >"
+	chevLbl.TextSize = 11
+	chevLbl.Font = Enum.Font.GothamBold
+	chevLbl.Parent = selectBtn
+	registerColor(chevLbl, "TextColor3", "TextSecondary")
+
+	local function setIndex(newIdx, fireCallback)
+		idx = math.clamp(newIdx, 1, #options)
+		valLbl.Text = options[idx]
+		if fireCallback and onChanged then
+			onChanged(idx, options[idx])
+		end
+	end
+
+	selectBtn.MouseButton1Click:Connect(function()
+		setIndex((idx % #options) + 1, true)
+	end)
+
+	local api = {
+		setIndex = function(newIdx, fireCallback)
+			setIndex(newIdx, fireCallback)
+		end
+	}
+	table.insert(DynamicControls, api)
+	return card, api
+end
+
+local function createInfoCard(parent, title, description, height)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, height or 84)
+	card.BorderSizePixel = 0
+	card.Parent = parent
+	addCorner(card, 12)
+	addStroke(card, "Border", 1)
+	registerColor(card, "BackgroundColor3", "CardBg")
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -28, 0, 20)
+	titleLbl.Position = UDim2.new(0, 14, 0, 10)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = title
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamBold
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = card
+	registerColor(titleLbl, "TextColor3", "TextPrimary")
+
+	local descLbl = Instance.new("TextLabel")
+	descLbl.Size = UDim2.new(1, -28, 1, -34)
+	descLbl.Position = UDim2.new(0, 14, 0, 30)
+	descLbl.BackgroundTransparency = 1
+	descLbl.Text = description
+	descLbl.TextSize = 11
+	descLbl.Font = Enum.Font.Gotham
+	descLbl.TextWrapped = true
+	descLbl.TextXAlignment = Enum.TextXAlignment.Left
+	descLbl.TextYAlignment = Enum.TextYAlignment.Top
+	descLbl.Parent = card
+	registerColor(descLbl, "TextColor3", "TextSecondary")
+
+	return card, descLbl
+end
+
+local function createSpeedModifierCard(parent, initialEnabled, initialSpeed, minSpeed, maxSpeed, step, onToggle, onSpeedChange)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, 80)
+	card.BorderSizePixel = 0
+	card.Parent = parent
+	addCorner(card, 12)
+	addStroke(card, "Border", 1)
+	registerColor(card, "BackgroundColor3", "CardBg")
+
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -86, 0, 20)
+	titleLbl.Position = UDim2.new(0, 14, 0, 10)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = "WalkSpeed / Velocidad"
+	titleLbl.TextSize = 13
+	titleLbl.Font = Enum.Font.GothamMedium
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Parent = card
+	registerColor(titleLbl, "TextColor3", "TextPrimary")
+
+	local statusSub = Instance.new("TextLabel")
+	statusSub.Size = UDim2.new(0, 155, 0, 24)
+	statusSub.Position = UDim2.new(0, 14, 0, 44)
+	statusSub.BackgroundTransparency = 1
+	statusSub.Text = "Valor actual: " .. tostring(initialSpeed)
+	statusSub.TextSize = 11
+	statusSub.Font = Enum.Font.Gotham
+	statusSub.TextXAlignment = Enum.TextXAlignment.Left
+	statusSub.Parent = card
+	registerColor(statusSub, "TextColor3", "TextSecondary")
+
+	local switchBtn = Instance.new("TextButton")
+	switchBtn.Size = UDim2.new(0, 50, 0, 28)
+	switchBtn.Position = UDim2.new(1, -64, 0, 10)
+	switchBtn.Text = ""
+	switchBtn.AutoButtonColor = false
+	switchBtn.Parent = card
+	addCorner(switchBtn, 14)
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.new(0, 22, 0, 22)
+	knob.BorderSizePixel = 0
+	knob.Parent = switchBtn
+	addCorner(knob, 11)
+	registerColor(knob, "BackgroundColor3", "KnobColor")
+
+	local controlsRow = Instance.new("Frame")
+	controlsRow.Size = UDim2.new(0, 218, 0, 28)
+	controlsRow.Position = UDim2.new(1, -232, 0, 42)
+	controlsRow.BackgroundTransparency = 1
+	controlsRow.Parent = card
+
+	local currentSpeed = initialSpeed
+	local enabled = initialEnabled
+
+	local speedBox = Instance.new("TextBox")
+	speedBox.Size = UDim2.new(0, 56, 1, 0)
+	speedBox.Position = UDim2.new(0, 35, 0, 0)
+	speedBox.Text = tostring(currentSpeed)
+	speedBox.TextSize = 12
+	speedBox.Font = Enum.Font.GothamBold
+	speedBox.ClearTextOnFocus = false
+	speedBox.Parent = controlsRow
+	addCorner(speedBox, 8)
+	addStroke(speedBox, "Border", 1)
+	registerColor(speedBox, "BackgroundColor3", "SidebarBg")
+	registerColor(speedBox, "TextColor3", "TextPrimary")
+
+	local function refreshSwitch(instant)
+		local tweenInfo = TweenInfo.new(instant and 0 or 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(switchBtn, TweenInfo.new(instant and 0 or 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = enabled and Theme.ToggleOnBg or Theme.ToggleOffBg
+		}):Play()
+		TweenService:Create(knob, tweenInfo, {
+			Position = enabled and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11)
+		}):Play()
+	end
+
+	local function setSpeed(newVal, fireCallback)
+		newVal = math.clamp(math.floor(newVal), minSpeed, maxSpeed)
+		currentSpeed = newVal
+		speedBox.Text = tostring(currentSpeed)
+		statusSub.Text = "Valor actual: " .. tostring(currentSpeed)
+		if fireCallback and onSpeedChange then onSpeedChange(currentSpeed) end
+	end
+
+	refreshSwitch(true)
+
+	local function makeStepBtn(txt, posX, delta)
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(0, 28, 1, 0)
+		b.Position = UDim2.new(0, posX, 0, 0)
+		b.Text = txt
+		b.TextSize = 15
+		b.Font = Enum.Font.GothamBold
+		b.Parent = controlsRow
+		addCorner(b, 14)
+		addIOSPressEffect(b, 0.9)
+		registerColor(b, "BackgroundColor3", "SidebarBg")
+		registerColor(b, "TextColor3", "TextPrimary")
+		b.MouseButton1Click:Connect(function() setSpeed(currentSpeed + delta, true) end)
+	end
+
+	makeStepBtn("-", 0, -step)
+	makeStepBtn("+", 98, step)
+
+	local resetBtn = Instance.new("TextButton")
+	resetBtn.Size = UDim2.new(0, 82, 1, 0)
+	resetBtn.Position = UDim2.new(0, 134, 0, 0)
+	resetBtn.Text = "Reset (16)"
+	resetBtn.TextSize = 11
+	resetBtn.Font = Enum.Font.GothamBold
+	resetBtn.Parent = controlsRow
+	addCorner(resetBtn, 14)
+	addIOSPressEffect(resetBtn, 0.94)
+	registerColor(resetBtn, "BackgroundColor3", "SidebarBg")
+	registerColor(resetBtn, "TextColor3", "TextSecondary")
+	resetBtn.MouseButton1Click:Connect(function() setSpeed(State.DefaultSpeed, true) end)
+
+	speedBox.FocusLost:Connect(function()
+		local parsed = tonumber(speedBox.Text)
+		if parsed then setSpeed(parsed, true) else speedBox.Text = tostring(currentSpeed) end
+	end)
+
+	switchBtn.MouseButton1Click:Connect(function()
+		enabled = not enabled
+		refreshSwitch(false)
+		if onToggle then onToggle(enabled) end
+	end)
+
+	local api = {
+		setState = function(newEn, newSpd, fireCallback)
+			enabled = not not newEn
+			refreshSwitch(true)
+			setSpeed(newSpd or currentSpeed, fireCallback)
+			if fireCallback and onToggle then onToggle(enabled) end
+		end,
+		refreshTheme = function()
+			refreshSwitch(true)
+		end
+	}
+	table.insert(DynamicControls, api)
+	return card, api
+end
+
+local function makeActionBtn(parent, text, cb)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1, 0, 0, 40)
+	b.Text = text
+	b.TextSize = 12
+	b.Font = Enum.Font.GothamBold
+	b.Parent = parent
+	addCorner(b, 14)
+	addStroke(b, "Border", 1)
+	addIOSPressEffect(b, 0.97)
+	registerColor(b, "BackgroundColor3", "CardBg")
+	registerColor(b, "TextColor3", "TextPrimary")
+	b.MouseButton1Click:Connect(cb)
+	return b
+end
+
+-- Crear pestañas
+local homePage   = createTab("Home", "HM", 1)
+local movPage    = createTab("Movimiento", "MV", 2)
+local espPage    = createTab("ESP", "SP", 3)
+local msPage     = createTab("Murder & Sheriff", "MS", 4)
+local autoPage   = createTab("Automático", "AT", 5)
+local hitboxPage = createTab("Hitbox", "HB", 6)
+local votePage   = createTab("Votar Mapa", "VT", 7)
+local confiPage  = createTab("Confi", "CF", 8)
+
+local Ctrl = {}
+
+-- ==========================================
+-- 0. PESTAÑA: HOME
+-- ==========================================
+local executorDetected = detectExecutorName()
+
+local heroCard = Instance.new("Frame")
+heroCard.Size = UDim2.new(1, 0, 0, 74)
+heroCard.BorderSizePixel = 0
+heroCard.Parent = homePage
+addCorner(heroCard, 14)
+addStroke(heroCard, "Border", 1)
+registerColor(heroCard, "BackgroundColor3", "CardBg")
+
+local heroTitle = Instance.new("TextLabel")
+heroTitle.Size = UDim2.new(1, -28, 0, 22)
+heroTitle.Position = UDim2.new(0, 14, 0, 12)
+heroTitle.BackgroundTransparency = 1
+heroTitle.Text = "Bienvenido, " .. LocalPlayer.Name
+heroTitle.TextSize = 15
+heroTitle.Font = Enum.Font.GothamBold
+heroTitle.TextXAlignment = Enum.TextXAlignment.Left
+heroTitle.Parent = heroCard
+registerColor(heroTitle, "TextColor3", "TextPrimary")
+
+local heroExecPill = Instance.new("Frame")
+heroExecPill.Size = UDim2.new(0, 0, 0, 24)
+heroExecPill.AutomaticSize = Enum.AutomaticSize.X
+heroExecPill.Position = UDim2.new(0, 14, 0, 40)
+heroExecPill.BorderSizePixel = 0
+heroExecPill.Parent = heroCard
+addCorner(heroExecPill, 12)
+registerColor(heroExecPill, "BackgroundColor3", "SidebarBg")
+
+local heroExecPad = Instance.new("UIPadding")
+heroExecPad.PaddingLeft = UDim.new(0, 10)
+heroExecPad.PaddingRight = UDim.new(0, 10)
+heroExecPad.Parent = heroExecPill
+
+local heroExecLbl = Instance.new("TextLabel")
+heroExecLbl.Size = UDim2.new(0, 0, 1, 0)
+heroExecLbl.AutomaticSize = Enum.AutomaticSize.X
+heroExecLbl.BackgroundTransparency = 1
+heroExecLbl.Text = "Ejecutor: " .. executorDetected
+heroExecLbl.TextSize = 11
+heroExecLbl.Font = Enum.Font.GothamBold
+heroExecLbl.Parent = heroExecPill
+registerColor(heroExecLbl, "TextColor3", "TextSecondary")
+
+local inviteCard = Instance.new("Frame")
+inviteCard.Size = UDim2.new(1, 0, 0, 72)
+inviteCard.BorderSizePixel = 0
+inviteCard.Parent = homePage
+addCorner(inviteCard, 14)
+addStroke(inviteCard, "Border", 1)
+registerColor(inviteCard, "BackgroundColor3", "CardBg")
+
+local inviteTitle = Instance.new("TextLabel")
+inviteTitle.Size = UDim2.new(1, -156, 0, 20)
+inviteTitle.Position = UDim2.new(0, 14, 0, 13)
+inviteTitle.BackgroundTransparency = 1
+inviteTitle.Text = "Comunidad Discord"
+inviteTitle.TextSize = 13
+inviteTitle.Font = Enum.Font.GothamBold
+inviteTitle.TextXAlignment = Enum.TextXAlignment.Left
+inviteTitle.Parent = inviteCard
+registerColor(inviteTitle, "TextColor3", "TextPrimary")
+
+local inviteSub = Instance.new("TextLabel")
+inviteSub.Size = UDim2.new(1, -156, 0, 18)
+inviteSub.Position = UDim2.new(0, 14, 0, 36)
+inviteSub.BackgroundTransparency = 1
+inviteSub.Text = DiscordInviteUrl
+inviteSub.TextSize = 11
+inviteSub.Font = Enum.Font.Gotham
+inviteSub.TextXAlignment = Enum.TextXAlignment.Left
+inviteSub.TextTruncate = Enum.TextTruncate.AtEnd
+inviteSub.Parent = inviteCard
+registerColor(inviteSub, "TextColor3", "TextSecondary")
+
+local copyInviteBtn = Instance.new("TextButton")
+copyInviteBtn.Size = UDim2.new(0, 128, 0, 36)
+copyInviteBtn.Position = UDim2.new(1, -142, 0.5, -18)
+copyInviteBtn.Text = "Copy invite"
+copyInviteBtn.TextSize = 12
+copyInviteBtn.Font = Enum.Font.GothamBold
+copyInviteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyInviteBtn.AutoButtonColor = false
+copyInviteBtn.Parent = inviteCard
+addCorner(copyInviteBtn, 18)
+addIOSPressEffect(copyInviteBtn, 0.93)
+registerColor(copyInviteBtn, "BackgroundColor3", "AccentBtn")
+
+copyInviteBtn.MouseButton1Click:Connect(function()
+	local copied = copyToClipboard(DiscordInviteUrl)
+	copyInviteBtn.Text = copied and "Copiado!" or "Sin portapapeles"
+	TweenService:Create(copyInviteBtn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = copied and Theme.ToggleOnBg or Theme.ToggleOffBg
+	}):Play()
+	task.delay(1.6, function()
+		if copyInviteBtn and copyInviteBtn.Parent then
+			copyInviteBtn.Text = "Copy invite"
+			TweenService:Create(copyInviteBtn, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = Theme.AccentBtn
+			}):Play()
+		end
+	end)
+end)
+
+local perfCard = Instance.new("Frame")
+perfCard.Size = UDim2.new(1, 0, 0, 74)
+perfCard.BorderSizePixel = 0
+perfCard.Parent = homePage
+addCorner(perfCard, 14)
+addStroke(perfCard, "Border", 1)
+registerColor(perfCard, "BackgroundColor3", "CardBg")
+
+local perfTitle = Instance.new("TextLabel")
+perfTitle.Size = UDim2.new(1, -28, 0, 20)
+perfTitle.Position = UDim2.new(0, 14, 0, 10)
+perfTitle.BackgroundTransparency = 1
+perfTitle.Text = "Información del dispositivo"
+perfTitle.TextSize = 13
+perfTitle.Font = Enum.Font.GothamBold
+perfTitle.TextXAlignment = Enum.TextXAlignment.Left
+perfTitle.Parent = perfCard
+registerColor(perfTitle, "TextColor3", "TextPrimary")
+
+local fpsPill = Instance.new("Frame")
+fpsPill.Size = UDim2.new(0.48, -18, 0, 28)
+fpsPill.Position = UDim2.new(0, 14, 0, 36)
+fpsPill.BorderSizePixel = 0
+fpsPill.Parent = perfCard
+addCorner(fpsPill, 14)
+registerColor(fpsPill, "BackgroundColor3", "SidebarBg")
+
+local fpsLbl = Instance.new("TextLabel")
+fpsLbl.Size = UDim2.new(1, 0, 1, 0)
+fpsLbl.BackgroundTransparency = 1
+fpsLbl.Text = "FPS: --"
+fpsLbl.TextSize = 12
+fpsLbl.Font = Enum.Font.GothamBold
+fpsLbl.Parent = fpsPill
+registerColor(fpsLbl, "TextColor3", "TextPrimary")
+
+local msPill = Instance.new("Frame")
+msPill.Size = UDim2.new(0.48, -18, 0, 28)
+msPill.Position = UDim2.new(0.52, 4, 0, 36)
+msPill.BorderSizePixel = 0
+msPill.Parent = perfCard
+addCorner(msPill, 14)
+registerColor(msPill, "BackgroundColor3", "SidebarBg")
+
+local msLbl = Instance.new("TextLabel")
+msLbl.Size = UDim2.new(1, 0, 1, 0)
+msLbl.BackgroundTransparency = 1
+msLbl.Text = "MS: -- ms"
+msLbl.TextSize = 12
+msLbl.Font = Enum.Font.GothamBold
+msLbl.Parent = msPill
+registerColor(msLbl, "TextColor3", "TextPrimary")
+
+-- ==========================================
+-- 1. PESTAÑA: MOVIMIENTO
+-- ==========================================
+_, Ctrl.Speed = createSpeedModifierCard(
+	movPage, State.SpeedEnabled, State.CustomSpeed, 16, 120, 2,
+	function(enabled)
+		State.SpeedEnabled = enabled
+		local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if hum and not enabled then hum.WalkSpeed = State.DefaultSpeed end
+	end,
+	function(newSpeed) State.CustomSpeed = newSpeed end
+)
+
+_, Ctrl.InfinityJump = createToggleCard(movPage, "Infinity Jump", "Permite saltar infinitamente en el aire", State.InfinityJump, function(v)
+	State.InfinityJump = v
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	if not State.InfinityJump then return end
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if hum and hum.Health > 0 then
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+end)
+
+-- ==========================================
+-- 2. PESTAÑA: ESP & UTILIDADES DE ROLES
+-- ==========================================
+local function clearESP()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character then
+			local hl = plr.Character:FindFirstChild("HeavenESP")
+			if hl then hl:Destroy() end
+		end
+	end
+	local droppedGun = Workspace:FindFirstChild("GunDrop", true)
+	if droppedGun and droppedGun:FindFirstChild("HeavenGunESP") then
+		droppedGun.HeavenGunESP:Destroy()
+	end
+end
+
+local function getRoleType(plr)
+	local backpack = plr:FindFirstChild("Backpack")
+	local char = plr.Character
+	local function hasTool(container, keyword)
+		if not container then return false end
+		for _, item in ipairs(container:GetChildren()) do
+			if item:IsA("Tool") and string.find(string.lower(item.Name), keyword) then
+				return true
+			end
+		end
+		return false
+	end
+	if hasTool(char, "knife") or hasTool(backpack, "knife") then
+		return "Murder"
+	elseif hasTool(char, "gun") or hasTool(backpack, "gun") or hasTool(char, "revolver") or hasTool(backpack, "revolver") then
+		return "Sheriff"
+	end
+	return "Innocent"
+end
+
+local function hasGunEquippedOrOwned()
+	local char = LocalPlayer.Character
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	local function isGunTool(obj)
+		if not obj or not obj:IsA("Tool") then return false end
+		local n = string.lower(obj.Name)
+		return string.find(n, "gun") ~= nil or string.find(n, "revolver") ~= nil or string.find(n, "pistol") ~= nil
+	end
+	if char then
+		for _, child in ipairs(char:GetChildren()) do
+			if isGunTool(child) then return true, child end
+		end
+	end
+	if backpack then
+		for _, child in ipairs(backpack:GetChildren()) do
+			if isGunTool(child) then return true, child end
+		end
+	end
+	return false, nil
+end
+
+local function getMurderTorsoPart()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and getRoleType(plr) == "Murder" then
+			local char = plr.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			if char and hum and hum.Health > 0 then
+				local torso = char:FindFirstChild("HumanoidRootPart")
+					or char:FindFirstChild("UpperTorso")
+					or char:FindFirstChild("Torso")
+				if torso and torso:IsA("BasePart") then
+					return torso, plr
+				end
+			end
+		end
+	end
+	return nil, nil
+end
+
+local function getSilentAimTorsoPosition()
+	if not State.AutoShotMurder then return nil end
+	if (State.SilentAimAccuracy or 100) < 100 then return nil end
+	if not hasGunEquippedOrOwned() then return nil end
+	local torso = getMurderTorsoPart()
+	if torso then
+		return torso.Position, torso
+	end
+	return nil
+end
+
+pcall(function()
+	if typeof(hookmetamethod) == "function" then
+		local oldNamecall
+		oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+			local method = getnamecallmethod()
+			if self == Workspace and (method == "Raycast" or method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
+				local targetPos = getSilentAimTorsoPosition()
+				if targetPos then
+					local args = { ... }
+					if method == "Raycast" and typeof(args[1]) == "Vector3" then
+						args[2] = (targetPos - args[1]).Unit * 500
+						return oldNamecall(self, unpack(args))
+					elseif (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") and typeof(args[1]) == "Ray" then
+						local origin = args[1].Origin
+						args[1] = Ray.new(origin, (targetPos - origin).Unit * 500)
+						return oldNamecall(self, unpack(args))
+					end
+				end
+			end
+			return oldNamecall(self, ...)
+		end)
+	end
+end)
+
+local function updateESP()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local existing = plr.Character:FindFirstChild("HeavenESP")
+			if State.ESPPlayers then
+				local hl = existing or Instance.new("Highlight")
+				hl.Name = "HeavenESP"
+				hl.Adornee = plr.Character
+				if State.ESPRoles then
+					local role = getRoleType(plr)
+					if role == "Murder" then
+						hl.FillColor = Color3.fromRGB(235, 64, 52)
+					elseif role == "Sheriff" then
+						hl.FillColor = Color3.fromRGB(52, 134, 235)
+					else
+						hl.FillColor = Color3.fromRGB(52, 199, 89)
+					end
+				else
+					hl.FillColor = Color3.fromRGB(255, 255, 255)
+				end
+				hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+				hl.FillTransparency = 0.45
+				hl.OutlineTransparency = 0
+				hl.Parent = plr.Character
+			elseif existing then
+				existing:Destroy()
+			end
+		end
+	end
+
+	local gunPart = Workspace:FindFirstChild("GunDrop", true)
+	if gunPart and gunPart:IsA("BasePart") then
+		local gunHl = gunPart:FindFirstChild("HeavenGunESP")
+		if State.ESPGunDrop then
+			if not gunHl then
+				gunHl = Instance.new("Highlight")
+				gunHl.Name = "HeavenGunESP"
+				gunHl.Adornee = gunPart
+				gunHl.FillColor = Color3.fromRGB(255, 214, 10)
+				gunHl.OutlineColor = Color3.fromRGB(255, 255, 255)
+				gunHl.FillTransparency = 0.25
+				gunHl.Parent = gunPart
+			end
+		elseif gunHl then
+			gunHl:Destroy()
+		end
+	end
+end
+
+_, Ctrl.ESPPlayers = createToggleCard(espPage, "ESP Players", "", State.ESPPlayers, function(v)
+	State.ESPPlayers = v
+	if not v then clearESP() end
+end)
+
+_, Ctrl.ESPRoles = createToggleCard(espPage, "ESP Roles", "Rojo=Murder | Azul=Sheriff | Verde=Inocente", State.ESPRoles, function(v)
+	State.ESPRoles = v
+end)
+
+_, Ctrl.ESPGunDrop = createToggleCard(espPage, "ESP Gun Drop", "Marca dónde cayó la pistola", State.ESPGunDrop, function(v)
+	State.ESPGunDrop = v
+	if not v then
+		local gunPart = Workspace:FindFirstChild("GunDrop", true)
+		if gunPart and gunPart:FindFirstChild("HeavenGunESP") then
+			gunPart.HeavenGunESP:Destroy()
+		end
+	end
+end)
+
+-- ==========================================
+-- 3. PESTAÑA: MURDER & SHERIFF
+-- ==========================================
+_, Ctrl.CamLockEnabled = createToggleCard(
+	msPage,
+	"CamLock",
+	"Bloquea la cámara al Murder cuando tienes la gun",
+	State.CamLockEnabled,
+	function(v)
+		State.CamLockEnabled = v
+	end
+)
+
+makeActionBtn(msPage, "TP hacia Gun Drop", function()
+	local gunPart = Workspace:FindFirstChild("GunDrop", true)
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if gunPart and root then
+		root.CFrame = gunPart.CFrame + Vector3.new(0, 3, 0)
+	end
+end)
+
+makeActionBtn(msPage, "TP detrás del Murder", function()
+	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and getRoleType(plr) == "Murder" and plr.Character then
+			local mRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+			if mRoot then
+				myRoot.CFrame = mRoot.CFrame * CFrame.new(0, 0, 4)
+				break
+			end
+		end
+	end
+end)
+
+makeActionBtn(msPage, "TP detrás del Sheriff", function()
+	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and getRoleType(plr) == "Sheriff" and plr.Character then
+			local sRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+			if sRoot then
+				myRoot.CFrame = sRoot.CFrame * CFrame.new(0, 0, 4)
+				break
+			end
+		end
+	end
+end)
+
+-- ==========================================
+-- 4. PESTAÑA: AUTOMÁTICO
+-- ==========================================
+_, Ctrl.AutoShotMurder = createToggleCard(
+	autoPage,
+	"Auto Shot Murder (Silent)",
+	"Silent Aim 100 puntería al torso cuando llevas arma",
+	State.AutoShotMurder,
+	function(v)
+		State.AutoShotMurder = v
+	end
+)
+
+_, Ctrl.FPSBoost = createToggleCard(
+	autoPage,
+	"FPS Boost",
+	"Reduce sombras e iluminación pesada para más FPS",
+	State.FPSBoost,
+	function(v)
+		applyFPSBoost(v)
+	end
+)
+
+_, Ctrl.AutoGrabGun = createToggleCard(autoPage, "Auto Coger Pistola", "", State.AutoGrabGun, function(v)
+	State.AutoGrabGun = v
+end)
+
+_, Ctrl.FarmCoins = createToggleCard(autoPage, "Farmear Coins", "", State.FarmCoins, function(v)
+	State.FarmCoins = v
+end)
+
+_, Ctrl.FlyEnabled = createToggleCard(autoPage, "Fly", "", State.FlyEnabled, function(v)
+	State.FlyEnabled = v
+end)
+
+_, Ctrl.FlySpeed = createSliderCard(autoPage, "Fly Velocidad", 10, 150, State.FlySpeed, 0, function(val)
+	State.FlySpeed = val
+end)
+
+_, Ctrl.AntiAFK = createToggleCard(autoPage, "Anti AFK", "", State.AntiAFK, function(v)
+	State.AntiAFK = v
+end)
+
+LocalPlayer.Idled:Connect(function()
+	if State.AntiAFK then
+		pcall(function()
+			VirtualUser:CaptureController()
+			VirtualUser:ClickButton2(Vector2.new())
+		end)
+	end
+end)
+
+-- ==========================================
+-- 5. PESTAÑA: HITBOX
+-- ==========================================
+local function resetHitboxes()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				hrp.Size = Vector3.new(2, 2, 1)
+				hrp.Transparency = 1
+				hrp.CanCollide = false
+			end
+		end
+	end
+end
+
+local function updateHitboxes()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				if State.HitboxExpander then
+					hrp.Size = Vector3.new(State.HitboxSize, State.HitboxSize, State.HitboxSize)
+					hrp.Transparency = State.HitboxTransparency
+					hrp.CanCollide = false
+				else
+					hrp.Size = Vector3.new(2, 2, 1)
+					hrp.Transparency = 1
+					hrp.CanCollide = false
+				end
+			end
+		end
+	end
+end
+
+_, Ctrl.HitboxExpander = createToggleCard(hitboxPage, "Hitbox Expander", "Funciona con cuchillo y pistola | Sin CanCollide", State.HitboxExpander, function(v)
+	State.HitboxExpander = v
+	if not v then resetHitboxes() end
+end)
+
+_, Ctrl.HitboxSize = createSliderCard(hitboxPage, "Tamaño Hitbox", 2, 30, State.HitboxSize, 0, function(val)
+	State.HitboxSize = val
+end)
+
+_, Ctrl.HitboxTransparency = createSliderCard(hitboxPage, "Transparencia", 0, 1, State.HitboxTransparency, 2, function(val)
+	State.HitboxTransparency = val
+end)
+
+-- ==========================================
+-- 6. PESTAÑA: VOTAR MAPA
+-- ==========================================
+_, Ctrl.SelectedMapIndex = createSelectorCard(votePage, "Seleccionar Mapa", MapsList, State.SelectedMapIndex, function(idx)
+	State.SelectedMapIndex = idx
+end)
+
+_, Ctrl.AutoVoteMap = createToggleCard(votePage, "Auto Votar Mapa", "Te mantiene en la zona de voto del mapa elegido", State.AutoVoteMap, function(v)
+	State.AutoVoteMap = v
+end)
+
+createInfoCard(
+	votePage,
+	"Cómo funciona",
+	"Selecciona el mapa y activa Auto Votar. El script te teletransportará a la zona de voto de ese mapa para que gane la votación. (Solo te mueve a ti, no a otros jugadores)."
+)
+
+-- ==========================================
+-- 7. PESTAÑA: CONFI
+-- ==========================================
+local themeNames = {}
+for i, t in ipairs(Themes) do
+	themeNames[i] = t.Name
+end
+
+_, Ctrl.ThemeSelector = createSelectorCard(confiPage, "Tema del Script", themeNames, State.ThemeIndex, function(idx)
+	applyTheme(idx)
+end)
+
+local configStatusCard = Instance.new("Frame")
+configStatusCard.Size = UDim2.new(1, 0, 0, 44)
+configStatusCard.BorderSizePixel = 0
+configStatusCard.Parent = confiPage
+addCorner(configStatusCard, 12)
+addStroke(configStatusCard, "Border", 1)
+registerColor(configStatusCard, "BackgroundColor3", "CardBg")
+
+local configStatusLbl = Instance.new("TextLabel")
+configStatusLbl.Size = UDim2.new(1, -24, 1, 0)
+configStatusLbl.Position = UDim2.new(0, 12, 0, 0)
+configStatusLbl.BackgroundTransparency = 1
+configStatusLbl.Text = "Estado: Listo para guardar o cargar configuración"
+configStatusLbl.TextSize = 11
+configStatusLbl.Font = Enum.Font.Gotham
+configStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+configStatusLbl.TextTruncate = Enum.TextTruncate.AtEnd
+configStatusLbl.Parent = configStatusCard
+registerColor(configStatusLbl, "TextColor3", "TextSecondary")
+
+local function serializeState()
+	return {
+		ThemeIndex = State.ThemeIndex,
+		SpeedEnabled = State.SpeedEnabled,
+		CustomSpeed = State.CustomSpeed,
+		InfinityJump = State.InfinityJump,
+		ESPPlayers = State.ESPPlayers,
+		ESPRoles = State.ESPRoles,
+		ESPGunDrop = State.ESPGunDrop,
+		CamLockEnabled = State.CamLockEnabled,
+		AutoShotMurder = State.AutoShotMurder,
+		SilentAimAccuracy = State.SilentAimAccuracy,
+		FPSBoost = State.FPSBoost,
+		AutoGrabGun = State.AutoGrabGun,
+		FarmCoins = State.FarmCoins,
+		FlyEnabled = State.FlyEnabled,
+		FlySpeed = State.FlySpeed,
+		AntiAFK = State.AntiAFK,
+		HitboxExpander = State.HitboxExpander,
+		HitboxSize = State.HitboxSize,
+		HitboxTransparency = State.HitboxTransparency,
+		SelectedMapIndex = State.SelectedMapIndex,
+		AutoVoteMap = State.AutoVoteMap
+	}
+end
+
+local function applyLoadedConfig(data)
+	if type(data) ~= "table" then return false end
+	for k, v in pairs(data) do
+		if State[k] ~= nil then
+			State[k] = v
+		end
+	end
+
+	applyTheme(State.ThemeIndex)
+	applyFPSBoost(State.FPSBoost)
+	if Ctrl.ThemeSelector then Ctrl.ThemeSelector.setIndex(State.ThemeIndex, false) end
+	if Ctrl.Speed then Ctrl.Speed.setState(State.SpeedEnabled, State.CustomSpeed, false) end
+	if Ctrl.InfinityJump then Ctrl.InfinityJump.setValue(State.InfinityJump, false) end
+	if Ctrl.ESPPlayers then Ctrl.ESPPlayers.setValue(State.ESPPlayers, false) end
+	if Ctrl.ESPRoles then Ctrl.ESPRoles.setValue(State.ESPRoles, false) end
+	if Ctrl.ESPGunDrop then Ctrl.ESPGunDrop.setValue(State.ESPGunDrop, false) end
+	if Ctrl.CamLockEnabled then Ctrl.CamLockEnabled.setValue(State.CamLockEnabled, false) end
+	if Ctrl.AutoShotMurder then Ctrl.AutoShotMurder.setValue(State.AutoShotMurder, false) end
+	if Ctrl.FPSBoost then Ctrl.FPSBoost.setValue(State.FPSBoost, false) end
+	if Ctrl.AutoGrabGun then Ctrl.AutoGrabGun.setValue(State.AutoGrabGun, false) end
+	if Ctrl.FarmCoins then Ctrl.FarmCoins.setValue(State.FarmCoins, false) end
+	if Ctrl.FlyEnabled then Ctrl.FlyEnabled.setValue(State.FlyEnabled, false) end
+	if Ctrl.FlySpeed then Ctrl.FlySpeed.setValue(State.FlySpeed, false) end
+	if Ctrl.AntiAFK then Ctrl.AntiAFK.setValue(State.AntiAFK, false) end
+	if Ctrl.HitboxExpander then Ctrl.HitboxExpander.setValue(State.HitboxExpander, false) end
+	if Ctrl.HitboxSize then Ctrl.HitboxSize.setValue(State.HitboxSize, false) end
+	if Ctrl.HitboxTransparency then Ctrl.HitboxTransparency.setValue(State.HitboxTransparency, false) end
+	if Ctrl.SelectedMapIndex then Ctrl.SelectedMapIndex.setIndex(State.SelectedMapIndex, false) end
+	if Ctrl.AutoVoteMap then Ctrl.AutoVoteMap.setValue(State.AutoVoteMap, false) end
+
+	if not State.ESPPlayers and not State.ESPGunDrop then clearESP() end
+	if not State.HitboxExpander then resetHitboxes() end
+	return true
+end
+
+makeActionBtn(confiPage, "Guardar Configuración", function()
+	local snapshot = serializeState()
+	MemoryConfigBackup = snapshot
+	local encoded = HttpService:JSONEncode(snapshot)
+	if typeof(writefile) == "function" then
+		local ok, err = pcall(function()
+			writefile(ConfigFileName, encoded)
+		end)
+		if ok then
+			configStatusLbl.Text = "Guardado en archivo: " .. ConfigFileName
+		else
+			configStatusLbl.Text = "Guardado en sesión (error archivo: " .. tostring(err) .. ")"
+		end
+	else
+		configStatusLbl.Text = "Guardado en sesión actual (sin writefile en ejecutor)"
+	end
+end)
+
+makeActionBtn(confiPage, "Cargar Configuración", function()
+	if typeof(isfile) == "function" and typeof(readfile) == "function" and isfile(ConfigFileName) then
+		local ok, decoded = pcall(function()
+			return HttpService:JSONDecode(readfile(ConfigFileName))
+		end)
+		if ok and applyLoadedConfig(decoded) then
+			configStatusLbl.Text = "Configuración cargada desde " .. ConfigFileName
+			return
+		end
+	end
+
+	if MemoryConfigBackup and applyLoadedConfig(MemoryConfigBackup) then
+		configStatusLbl.Text = "Configuración cargada desde memoria de sesión"
+	else
+		configStatusLbl.Text = "No se encontró ninguna configuración guardada"
+	end
+end)
+
+makeActionBtn(confiPage, "Desactivar Todo y Restaurar", function()
+	State.SpeedEnabled = false
+	State.InfinityJump = false
+	State.ESPPlayers = false
+	State.ESPRoles = false
+	State.ESPGunDrop = false
+	State.CamLockEnabled = false
+	State.AutoShotMurder = false
+	State.FPSBoost = false
+	State.AutoGrabGun = false
+	State.FarmCoins = false
+	State.FlyEnabled = false
+	State.AntiAFK = false
+	State.HitboxExpander = false
+	State.AutoVoteMap = false
+	applyFPSBoost(false)
+	applyLoadedConfig(State)
+	clearESP()
+	resetHitboxes()
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if hum then hum.WalkSpeed = State.DefaultSpeed end
+	configStatusLbl.Text = "Funciones desactivadas y valores restaurados"
+end)
+
+selectTab("Home")
+
+-- Loop principal
+local frameCounter = 0
+local elapsedStats = 0
+local currentFPS = 60
+local rainbowRotation = 0
+
+RunService.RenderStepped:Connect(function(dt)
+	rainbowRotation = (rainbowRotation + dt * 95) % 360
+	for _, rb in ipairs(RainbowStrokes) do
+		if rb.gradient and rb.gradient.Parent then
+			rb.gradient.Rotation = rainbowRotation
+		end
+	end
+
+	frameCounter += 1
+	elapsedStats += dt
+	if elapsedStats >= 0.35 then
+		currentFPS = math.floor((frameCounter / elapsedStats) + 0.5)
+		local pingMs = getCurrentPingMs()
+		frameCounter = 0
+		elapsedStats = 0
+		if fpsLbl and fpsLbl.Parent then
+			fpsLbl.Text = "FPS: " .. tostring(currentFPS)
+		end
+		if msLbl and msLbl.Parent then
+			msLbl.Text = "MS: " .. tostring(pingMs) .. " ms"
+		end
+	end
+
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+
+	if hum and State.SpeedEnabled then
+		hum.WalkSpeed = State.CustomSpeed
+	end
+
+	if root and State.FlyEnabled then
+		local moveDir = hum and hum.MoveDirection or Vector3.zero
+		local vertical = 0
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vertical -= 1 end
+		root.AssemblyLinearVelocity = Vector3.new(
+			moveDir.X * State.FlySpeed,
+			vertical * State.FlySpeed,
+			moveDir.Z * State.FlySpeed
+		)
+	end
+
+	if State.AutoGrabGun and root then
+		local gunDrop = Workspace:FindFirstChild("GunDrop", true)
+		if gunDrop and gunDrop:IsA("BasePart") then
+			safeTouch(gunDrop, root)
+		end
+	end
+
+	if State.FarmCoins and root then
+		for _, obj in ipairs(Workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and (string.lower(obj.Name) == "coin_server" or string.find(string.lower(obj.Name), "coin")) then
+				if (obj.Position - root.Position).Magnitude <= 35 then
+					safeTouch(obj, root)
+				end
+			end
+		end
+	end
+
+	if State.CamLockEnabled and Camera and root then
+		if hasGunEquippedOrOwned() then
+			local torsoPart = getMurderTorsoPart()
+			if torsoPart then
+				pcall(function()
+					Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, torsoPart.Position)
+				end)
+			end
+		end
+	end
+
+	if State.AutoVoteMap and root then
+		local chosenMap = string.lower(MapsList[State.SelectedMapIndex] or "")
+		for _, obj in ipairs(Workspace:GetDescendants()) do
+			if obj:IsA("BasePart") and string.find(string.lower(obj.Name), chosenMap) then
+				root.CFrame = obj.CFrame + Vector3.new(0, 3, 0)
+				break
+			end
+		end
+	end
+
+	if State.ESPPlayers or State.ESPGunDrop then
+		pcall(updateESP)
+	end
+	if State.HitboxExpander then
+		pcall(updateHitboxes)
+	end
+end)
