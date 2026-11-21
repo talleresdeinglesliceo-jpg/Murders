@@ -8,6 +8,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local HttpService = game:GetService("HttpService")
 local Stats = game:GetService("Stats")
 local Lighting = game:GetService("Lighting")
+local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -160,16 +161,88 @@ local Themes = {
 	}
 }
 
+local SkyboxPresets = {
+	{
+		Name = "Default Sky",
+		StarCount = 3000,
+		SunAngularSize = 21,
+		MoonAngularSize = 11,
+		Ft = "rbxassetid://159454299",
+		Bk = "rbxassetid://159454296",
+		Lf = "rbxassetid://159454293",
+		Rt = "rbxassetid://159454300",
+		Up = "rbxassetid://159454288",
+		Dn = "rbxassetid://159454286"
+	},
+	{
+		Name = "Night Stars",
+		StarCount = 5000,
+		SunAngularSize = 10,
+		MoonAngularSize = 16,
+		Ft = "rbxassetid://12064107",
+		Bk = "rbxassetid://12064152",
+		Lf = "rbxassetid://12064121",
+		Rt = "rbxassetid://12064115",
+		Up = "rbxassetid://12064131",
+		Dn = "rbxassetid://12064107"
+	},
+	{
+		Name = "Purple Space",
+		StarCount = 4500,
+		SunAngularSize = 12,
+		MoonAngularSize = 14,
+		Ft = "rbxassetid://159248188",
+		Bk = "rbxassetid://159248183",
+		Lf = "rbxassetid://159248176",
+		Rt = "rbxassetid://159248168",
+		Up = "rbxassetid://159248194",
+		Dn = "rbxassetid://159248180"
+	},
+	{
+		Name = "Crimson Sunset",
+		StarCount = 1200,
+		SunAngularSize = 26,
+		MoonAngularSize = 11,
+		Ft = "rbxassetid://451220849",
+		Bk = "rbxassetid://451220849",
+		Lf = "rbxassetid://451220849",
+		Rt = "rbxassetid://451220849",
+		Up = "rbxassetid://451220849",
+		Dn = "rbxassetid://451220849"
+	},
+	{
+		Name = "Emerald Horizon",
+		StarCount = 2500,
+		SunAngularSize = 18,
+		MoonAngularSize = 12,
+		Ft = "rbxassetid://149397692",
+		Bk = "rbxassetid://149397684",
+		Lf = "rbxassetid://149397688",
+		Rt = "rbxassetid://149397702",
+		Up = "rbxassetid://149397696",
+		Dn = "rbxassetid://149397681"
+	}
+}
+
+local SkyboxNames = {}
+local SkyboxMap = {}
+for i, preset in ipairs(SkyboxPresets) do
+	SkyboxNames[i] = preset.Name
+	SkyboxMap[preset.Name] = preset
+end
+
 local MapsList = { "House", "Factory", "Office", "Bank", "Mil Base", "Bio Lab" }
 local ConfigFileName = "FamilyHUD_Config.json"
 local MemoryConfigBackup = nil
 
 local State = {
 	ThemeIndex = 1,
+	SkyboxName = "Default Sky",
 	SpeedEnabled = false,
 	CustomSpeed = 28,
 	DefaultSpeed = 16,
 	InfinityJump = false,
+	Noclip = false,
 	ESPRoles = false,
 	CamLockEnabled = false,
 	AutoKillEnabled = false,
@@ -185,7 +258,11 @@ local State = {
 	HitboxSize = 12,
 	HitboxTransparency = 0.65,
 	SelectedMapIndex = 1,
-	AutoVoteMap = false
+	AutoVoteMap = false,
+	ShowFloatCamLock = false,
+	ShowFloatAutoKill = false,
+	ShowFloatFly = false,
+	ShowFloatNoclip = false
 }
 
 local LightingBackup = {
@@ -194,6 +271,85 @@ local LightingBackup = {
 	EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
 	EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale
 }
+
+local OriginalSkySnapshot = nil
+for _, child in ipairs(Lighting:GetChildren()) do
+	if child:IsA("Sky") then
+		OriginalSkySnapshot = {
+			StarCount = child.StarCount,
+			SunAngularSize = child.SunAngularSize,
+			MoonAngularSize = child.MoonAngularSize,
+			Ft = child.SkyboxFt,
+			Bk = child.SkyboxBk,
+			Lf = child.SkyboxLf,
+			Rt = child.SkyboxRt,
+			Up = child.SkyboxUp,
+			Dn = child.SkyboxDn
+		}
+		break
+	end
+end
+
+local managedSky = Lighting:FindFirstChild("FamilyHUDSky")
+if not managedSky or not managedSky:IsA("Sky") then
+	managedSky = Instance.new("Sky")
+	managedSky.Name = "FamilyHUDSky"
+end
+managedSky.Parent = Lighting
+
+local function applySkyboxByName(skyName)
+	local preset = SkyboxMap[skyName] or SkyboxPresets[1]
+	State.SkyboxName = preset.Name
+
+	pcall(function()
+		if not managedSky or not managedSky.Parent then
+			managedSky = Lighting:FindFirstChild("FamilyHUDSky") or Instance.new("Sky")
+			managedSky.Name = "FamilyHUDSky"
+			managedSky.Parent = Lighting
+		end
+
+		if preset.Name == "Default Sky" and OriginalSkySnapshot then
+			managedSky.StarCount = OriginalSkySnapshot.StarCount
+			managedSky.SunAngularSize = OriginalSkySnapshot.SunAngularSize
+			managedSky.MoonAngularSize = OriginalSkySnapshot.MoonAngularSize
+			managedSky.SkyboxFt = OriginalSkySnapshot.Ft
+			managedSky.SkyboxBk = OriginalSkySnapshot.Bk
+			managedSky.SkyboxLf = OriginalSkySnapshot.Lf
+			managedSky.SkyboxRt = OriginalSkySnapshot.Rt
+			managedSky.SkyboxUp = OriginalSkySnapshot.Up
+			managedSky.SkyboxDn = OriginalSkySnapshot.Dn
+		else
+			managedSky.StarCount = preset.StarCount
+			managedSky.SunAngularSize = preset.SunAngularSize
+			managedSky.MoonAngularSize = preset.MoonAngularSize
+			managedSky.SkyboxFt = preset.Ft
+			managedSky.SkyboxBk = preset.Bk
+			managedSky.SkyboxLf = preset.Lf
+			managedSky.SkyboxRt = preset.Rt
+			managedSky.SkyboxUp = preset.Up
+			managedSky.SkyboxDn = preset.Dn
+		end
+
+		for _, obj in ipairs(Lighting:GetChildren()) do
+			if obj:IsA("Sky") and obj ~= managedSky then
+				obj:Destroy()
+			end
+		end
+	end)
+end
+
+local lastSkyGuard = 0
+Lighting.ChildAdded:Connect(function(child)
+	if child:IsA("Sky") and child ~= managedSky then
+		local now = os.clock()
+		if (now - lastSkyGuard) >= 0.2 then
+			lastSkyGuard = now
+			task.defer(function()
+				applySkyboxByName(State.SkyboxName)
+			end)
+		end
+	end
+end)
 
 local function applyFPSBoost(enabled)
 	State.FPSBoost = enabled
@@ -1193,7 +1349,8 @@ local msPage     = createTab("Murder & Sheriff", "MS", 4)
 local autoPage   = createTab("Automático", "AT", 5)
 local hitboxPage = createTab("Hitbox", "HB", 6)
 local votePage   = createTab("Votar Mapa", "VT", 7)
-local confiPage  = createTab("Confi", "CF", 8)
+local floatPage  = createTab("Botones", "BT", 8)
+local confiPage  = createTab("Confi", "CF", 9)
 
 local Ctrl = {}
 
@@ -1359,8 +1516,108 @@ msLbl.Parent = msPill
 registerColor(msLbl, "TextColor3", "TextPrimary")
 
 -- ==========================================
--- 1. PESTAÑA: MOVIMIENTO
+-- 1. PESTAÑA: MOVIMIENTO, FLY Y NOCLIP OPTIMIZADOS
 -- ==========================================
+local flyAttachment = nil
+local flyLinearVel = nil
+
+local function clearFlyPhysics()
+	if flyLinearVel then
+		pcall(function() flyLinearVel:Destroy() end)
+		flyLinearVel = nil
+	end
+	if flyAttachment then
+		pcall(function() flyAttachment:Destroy() end)
+		flyAttachment = nil
+	end
+end
+
+local function ensureFlyPhysics(root, hum)
+	if not root or not root:IsA("BasePart") then return nil end
+	if hum and hum.PlatformStand ~= true then
+		pcall(function() hum.PlatformStand = true end)
+	end
+	if not flyAttachment or not flyAttachment.Parent then
+		flyAttachment = Instance.new("Attachment")
+		flyAttachment.Name = "FamilyFlyAttachment"
+		flyAttachment.Parent = root
+	end
+	if not flyLinearVel or not flyLinearVel.Parent then
+		flyLinearVel = Instance.new("LinearVelocity")
+		flyLinearVel.Name = "FamilyFlyVelocity"
+		flyLinearVel.Attachment0 = flyAttachment
+		flyLinearVel.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+		flyLinearVel.MaxForce = 1e6
+		flyLinearVel.VectorVelocity = Vector3.zero
+		flyLinearVel.Parent = root
+	end
+	return flyLinearVel
+end
+
+local function setFlyState(enabled)
+	State.FlyEnabled = enabled
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if enabled then
+		if root and hum then
+			ensureFlyPhysics(root, hum)
+		end
+	else
+		clearFlyPhysics()
+		if hum and hum.PlatformStand then
+			pcall(function() hum.PlatformStand = false end)
+		end
+	end
+	if Ctrl.FloatFlyVisual then
+		Ctrl.FloatFlyVisual(enabled)
+	end
+end
+
+local OriginalCanCollide = setmetatable({}, { __mode = "k" })
+
+local function applyNoclipStep(char)
+	if not char then return end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if OriginalCanCollide[part] == nil then
+				OriginalCanCollide[part] = part.CanCollide
+			end
+			if part.CanCollide then
+				part.CanCollide = false
+			end
+		end
+	end
+end
+
+local function restoreNoclip(char)
+	if not char then return end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") and OriginalCanCollide[part] ~= nil then
+			part.CanCollide = OriginalCanCollide[part]
+			OriginalCanCollide[part] = nil
+		end
+	end
+end
+
+local function setNoclipState(enabled)
+	State.Noclip = enabled
+	if enabled then
+		applyNoclipStep(LocalPlayer.Character)
+	else
+		restoreNoclip(LocalPlayer.Character)
+	end
+	if Ctrl.FloatNoclipVisual then
+		Ctrl.FloatNoclipVisual(enabled)
+	end
+end
+
+RunService.Stepped:Connect(function()
+	if State.Noclip then
+		applyNoclipStep(LocalPlayer.Character)
+	end
+end)
+
 _, Ctrl.Speed = createSpeedModifierCard(
 	movPage, State.SpeedEnabled, State.CustomSpeed, 16, 120, 2,
 	function(enabled)
@@ -1375,6 +1632,10 @@ _, Ctrl.InfinityJump = createToggleCard(movPage, "Infinity Jump", "Permite salta
 	State.InfinityJump = v
 end)
 
+_, Ctrl.Noclip = createToggleCard(movPage, "Noclip", "Atraviesa paredes y obstáculos de forma optimizada", State.Noclip, function(v)
+	setNoclipState(v)
+end)
+
 UserInputService.JumpRequest:Connect(function()
 	if not State.InfinityJump then return end
 	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -1384,7 +1645,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ==========================================
--- 2. UTILIDADES DE ROLES, VISIBILIDAD Y COMBATE
+-- 2. UTILIDADES DE ROLES, ESP OVERHEAD, VISIBILIDAD Y COMBATE
 -- ==========================================
 local RoleColors = {
 	Murder = Color3.fromRGB(235, 64, 52),
@@ -1392,11 +1653,19 @@ local RoleColors = {
 	Innocent = Color3.fromRGB(52, 199, 89)
 }
 
+local RoleLabels = {
+	Murder = "MURDER",
+	Sheriff = "SHERIFF",
+	Innocent = "INOCENTE"
+}
+
 local function clearESP()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr.Character then
 			local hl = plr.Character:FindFirstChild("FamilyRoleESP")
 			if hl then hl:Destroy() end
+			local tag = plr.Character:FindFirstChild("FamilyRoleTag")
+			if tag then tag:Destroy() end
 		end
 	end
 end
@@ -1421,14 +1690,20 @@ local function getRoleType(plr)
 	return "Innocent"
 end
 
+local function isGunTool(obj)
+	if not obj or not obj:IsA("Tool") then return false end
+	local n = string.lower(obj.Name)
+	return string.find(n, "gun") ~= nil or string.find(n, "revolver") ~= nil or string.find(n, "pistol") ~= nil
+end
+
+local function isKnifeTool(obj)
+	if not obj or not obj:IsA("Tool") then return false end
+	return string.find(string.lower(obj.Name), "knife") ~= nil
+end
+
 local function getEquippedOrOwnedGun()
 	local char = LocalPlayer.Character
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	local function isGunTool(obj)
-		if not obj or not obj:IsA("Tool") then return false end
-		local n = string.lower(obj.Name)
-		return string.find(n, "gun") ~= nil or string.find(n, "revolver") ~= nil or string.find(n, "pistol") ~= nil
-	end
 	if char then
 		for _, child in ipairs(char:GetChildren()) do
 			if isGunTool(child) then return child end
@@ -1445,10 +1720,6 @@ end
 local function getEquippedOrOwnedKnife()
 	local char = LocalPlayer.Character
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	local function isKnifeTool(obj)
-		if not obj or not obj:IsA("Tool") then return false end
-		return string.find(string.lower(obj.Name), "knife") ~= nil
-	end
 	if char then
 		for _, child in ipairs(char:GetChildren()) do
 			if isKnifeTool(child) then return child end
@@ -1529,29 +1800,30 @@ local function runAutoKillStep(myChar, myHum, myRoot)
 		return
 	end
 	local now = os.clock()
-	if (now - lastAutoKillStep) < 0.12 then
+	if (now - lastAutoKillStep) < 0.16 then
 		return
 	end
 
+	local equippedTool = myChar:FindFirstChildOfClass("Tool")
 	local gunTool = getEquippedOrOwnedGun()
 	local knifeTool = getEquippedOrOwnedKnife()
 
 	if gunTool then
-		if gunTool.Parent ~= myChar and myHum then
+		if equippedTool ~= gunTool and not equippedTool then
 			pcall(function() myHum:EquipTool(gunTool) end)
 		end
 		local murderTorso = getMurderTorsoPart()
 		if murderTorso then
 			lastAutoKillStep = now
 			pcall(function()
-				myRoot.CFrame = murderTorso.CFrame * CFrame.new(0, 0, 3.5)
+				myRoot.CFrame = murderTorso.CFrame * CFrame.new(0, 0, 3.8)
 			end)
 		end
 		return
 	end
 
 	if knifeTool then
-		if knifeTool.Parent ~= myChar and myHum then
+		if equippedTool ~= knifeTool and not equippedTool then
 			pcall(function() myHum:EquipTool(knifeTool) end)
 		end
 		local targets = getAliveTargetsInMatch()
@@ -1564,7 +1836,7 @@ local function runAutoKillStep(myChar, myHum, myRoot)
 			if chosen and chosen.root then
 				lastAutoKillStep = now
 				pcall(function()
-					myRoot.CFrame = chosen.root.CFrame * CFrame.new(0, 0, 3)
+					myRoot.CFrame = chosen.root.CFrame * CFrame.new(0, 0, 3.2)
 				end)
 			end
 		end
@@ -1606,34 +1878,74 @@ pcall(function()
 	end
 end)
 
+local function ensureRoleTag(plr, char, role, color)
+	local anchor = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+	if not anchor or not anchor:IsA("BasePart") then return end
+
+	local bbg = char:FindFirstChild("FamilyRoleTag")
+	if not bbg then
+		bbg = Instance.new("BillboardGui")
+		bbg.Name = "FamilyRoleTag"
+		bbg.Size = UDim2.new(0, 170, 0, 34)
+		bbg.StudsOffset = Vector3.new(0, 2.7, 0)
+		bbg.AlwaysOnTop = true
+		bbg.MaxDistance = 1000
+		bbg.Parent = char
+
+		local lbl = Instance.new("TextLabel")
+		lbl.Name = "TagLabel"
+		lbl.Size = UDim2.new(1, 0, 1, 0)
+		lbl.BackgroundTransparency = 1
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextSize = 13
+		lbl.TextStrokeTransparency = 0.2
+		lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		lbl.Parent = bbg
+	end
+
+	bbg.Adornee = anchor
+	local lbl = bbg:FindFirstChild("TagLabel")
+	if lbl and lbl:IsA("TextLabel") then
+		lbl.Text = "[" .. (RoleLabels[role] or "INOCENTE") .. "] " .. plr.DisplayName
+		lbl.TextColor3 = color
+	end
+end
+
 local function updateESPRoles()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer and plr.Character then
-			local existing = plr.Character:FindFirstChild("FamilyRoleESP")
+			local existingHl = plr.Character:FindFirstChild("FamilyRoleESP")
+			local existingTag = plr.Character:FindFirstChild("FamilyRoleTag")
 			if State.ESPRoles then
-				local hl = existing or Instance.new("Highlight")
+				local role = getRoleType(plr)
+				local color = RoleColors[role] or RoleColors.Innocent
+
+				local hl = existingHl or Instance.new("Highlight")
 				hl.Name = "FamilyRoleESP"
 				hl.Adornee = plr.Character
-				local role = getRoleType(plr)
-				hl.FillColor = RoleColors[role] or RoleColors.Innocent
+				hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				hl.FillColor = color
 				hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-				hl.FillTransparency = 0.45
+				hl.FillTransparency = 0.42
 				hl.OutlineTransparency = 0
 				hl.Parent = plr.Character
-			elseif existing then
-				existing:Destroy()
+
+				ensureRoleTag(plr, plr.Character, role, color)
+			else
+				if existingHl then existingHl:Destroy() end
+				if existingTag then existingTag:Destroy() end
 			end
 		end
 	end
 end
 
 -- ==========================================
--- 3. PESTAÑA: ESP (SOLO ROLES)
+-- 3. PESTAÑA: ESP (SOLO ROLES + ROL ARRIBA + TRAS PAREDES)
 -- ==========================================
 _, Ctrl.ESPRoles = createToggleCard(
 	espPage,
 	"ESP Roles",
-	"Rojo=Murder | Azul=Sheriff | Verde=Inocente",
+	"Visible tras paredes + Rol arriba de la cabeza",
 	State.ESPRoles,
 	function(v)
 		State.ESPRoles = v
@@ -1655,6 +1967,9 @@ _, Ctrl.CamLockEnabled = createToggleCard(
 	State.CamLockEnabled,
 	function(v)
 		State.CamLockEnabled = v
+		if Ctrl.FloatCamLockVisual then
+			Ctrl.FloatCamLockVisual(v)
+		end
 	end
 )
 
@@ -1666,6 +1981,9 @@ _, Ctrl.AutoKillEnabled = createToggleCard(
 	function(v)
 		State.AutoKillEnabled = v
 		autoKillIndex = 1
+		if Ctrl.FloatAutoKillVisual then
+			Ctrl.FloatAutoKillVisual(v)
+		end
 	end
 )
 
@@ -1731,8 +2049,8 @@ _, Ctrl.FarmCoins = createToggleCard(autoPage, "Farmear Coins", "", State.FarmCo
 	State.FarmCoins = v
 end)
 
-_, Ctrl.FlyEnabled = createToggleCard(autoPage, "Fly", "", State.FlyEnabled, function(v)
-	State.FlyEnabled = v
+_, Ctrl.FlyEnabled = createToggleCard(autoPage, "Fly", "Vuelo optimizado (WASD + Space / Ctrl)", State.FlyEnabled, function(v)
+	setFlyState(v)
 end)
 
 _, Ctrl.FlySpeed = createSliderCard(autoPage, "Fly Velocidad", 10, 150, State.FlySpeed, 0, function(val)
@@ -1870,7 +2188,150 @@ createInfoCard(
 )
 
 -- ==========================================
--- 8. PESTAÑA: CONFI
+-- 8. PESTAÑA: BOTONES FLOTANTES
+-- ==========================================
+local function createFloatingToggleButton(name, labelText, defaultPos, isActiveFn, onTap)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 118, 0, 38)
+	btn.Position = defaultPos
+	btn.Text = labelText
+	btn.TextSize = 11
+	btn.Font = Enum.Font.GothamBold
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.AutoButtonColor = false
+	btn.Visible = false
+	btn.ZIndex = 20
+	btn.Parent = ScreenGui
+	addCorner(btn, 19)
+	addIOSPressEffect(btn, 0.93)
+	attachRainbowBorder(btn, 1.5)
+
+	local function refreshActiveVisual(active)
+		btn.Text = labelText .. (active and ": ON" or ": OFF")
+		TweenService:Create(btn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = active and Theme.ToggleOnBg or Theme.CardBg
+		}):Play()
+	end
+
+	refreshActiveVisual(isActiveFn())
+	makeDraggable(btn, btn)
+
+	btn.MouseButton1Click:Connect(function()
+		onTap()
+		refreshActiveVisual(isActiveFn())
+	end)
+
+	return btn, refreshActiveVisual
+end
+
+local floatCamLockBtn, refreshCamLockFloat = createFloatingToggleButton(
+	"FloatCamLock",
+	"CamLock",
+	UDim2.new(0.03, 0, 0.42, 0),
+	function() return State.CamLockEnabled end,
+	function()
+		State.CamLockEnabled = not State.CamLockEnabled
+		if Ctrl.CamLockEnabled then
+			Ctrl.CamLockEnabled.setValue(State.CamLockEnabled, false)
+		end
+	end
+)
+Ctrl.FloatCamLockVisual = refreshCamLockFloat
+
+local floatAutoKillBtn, refreshAutoKillFloat = createFloatingToggleButton(
+	"FloatAutoKill",
+	"AutoKill",
+	UDim2.new(0.03, 0, 0.50, 0),
+	function() return State.AutoKillEnabled end,
+	function()
+		State.AutoKillEnabled = not State.AutoKillEnabled
+		autoKillIndex = 1
+		if Ctrl.AutoKillEnabled then
+			Ctrl.AutoKillEnabled.setValue(State.AutoKillEnabled, false)
+		end
+	end
+)
+Ctrl.FloatAutoKillVisual = refreshAutoKillFloat
+
+local floatFlyBtn, refreshFlyFloat = createFloatingToggleButton(
+	"FloatFly",
+	"Fly",
+	UDim2.new(0.03, 0, 0.58, 0),
+	function() return State.FlyEnabled end,
+	function()
+		setFlyState(not State.FlyEnabled)
+		if Ctrl.FlyEnabled then
+			Ctrl.FlyEnabled.setValue(State.FlyEnabled, false)
+		end
+	end
+)
+Ctrl.FloatFlyVisual = refreshFlyFloat
+
+local floatNoclipBtn, refreshNoclipFloat = createFloatingToggleButton(
+	"FloatNoclip",
+	"Noclip",
+	UDim2.new(0.03, 0, 0.66, 0),
+	function() return State.Noclip end,
+	function()
+		setNoclipState(not State.Noclip)
+		if Ctrl.Noclip then
+			Ctrl.Noclip.setValue(State.Noclip, false)
+		end
+	end
+)
+Ctrl.FloatNoclipVisual = refreshNoclipFloat
+
+_, Ctrl.ShowFloatCamLock = createToggleCard(
+	floatPage,
+	"Botón Flotante CamLock",
+	"Muestra un botón arrastrable en pantalla para CamLock",
+	State.ShowFloatCamLock,
+	function(v)
+		State.ShowFloatCamLock = v
+		floatCamLockBtn.Visible = v
+		refreshCamLockFloat(State.CamLockEnabled)
+	end
+)
+
+_, Ctrl.ShowFloatAutoKill = createToggleCard(
+	floatPage,
+	"Botón Flotante AutoKill",
+	"Muestra un botón arrastrable en pantalla para AutoKill",
+	State.ShowFloatAutoKill,
+	function(v)
+		State.ShowFloatAutoKill = v
+		floatAutoKillBtn.Visible = v
+		refreshAutoKillFloat(State.AutoKillEnabled)
+	end
+)
+
+_, Ctrl.ShowFloatFly = createToggleCard(
+	floatPage,
+	"Botón Flotante Fly",
+	"Muestra un botón arrastrable en pantalla para Fly",
+	State.ShowFloatFly,
+	function(v)
+		State.ShowFloatFly = v
+		floatFlyBtn.Visible = v
+		refreshFlyFloat(State.FlyEnabled)
+	end
+)
+
+_, Ctrl.ShowFloatNoclip = createToggleCard(
+	floatPage,
+	"Botón Flotante Noclip",
+	"Muestra un botón arrastrable en pantalla para Noclip",
+	State.ShowFloatNoclip,
+	function(v)
+		State.ShowFloatNoclip = v
+		floatNoclipBtn.Visible = v
+		refreshNoclipFloat(State.Noclip)
+	end
+)
+
+-- ==========================================
+-- 9. PESTAÑA: CONFI, SKYBOXES Y SERVER HOP
 -- ==========================================
 local themeNames = {}
 for i, t in ipairs(Themes) do
@@ -1879,6 +2340,18 @@ end
 
 _, Ctrl.ThemeSelector = createSelectorCard(confiPage, "Tema del Script", themeNames, State.ThemeIndex, function(idx)
 	applyTheme(idx)
+end)
+
+local initialSkyIdx = 1
+for i, skyName in ipairs(SkyboxNames) do
+	if skyName == State.SkyboxName then
+		initialSkyIdx = i
+		break
+	end
+end
+
+_, Ctrl.SkyboxSelector = createSelectorCard(confiPage, "Skybox", SkyboxNames, initialSkyIdx, function(_, skyName)
+	applySkyboxByName(skyName)
 end)
 
 local configStatusCard = Instance.new("Frame")
@@ -1901,12 +2374,56 @@ configStatusLbl.TextTruncate = Enum.TextTruncate.AtEnd
 configStatusLbl.Parent = configStatusCard
 registerColor(configStatusLbl, "TextColor3", "TextSecondary")
 
+local function performServerHop()
+	configStatusLbl.Text = "Estado: Buscando otro servidor..."
+	local placeId = game.PlaceId
+	local currentJobId = game.JobId
+	local targetServerId = nil
+
+	pcall(function()
+		local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", placeId)
+		local raw = game:HttpGet(url)
+		local decoded = HttpService:JSONDecode(raw)
+		if decoded and type(decoded.data) == "table" then
+			local candidates = {}
+			for _, srv in ipairs(decoded.data) do
+				if type(srv) == "table" and srv.id and tostring(srv.id) ~= tostring(currentJobId) then
+					local playing = tonumber(srv.playing) or 0
+					local maxPlayers = tonumber(srv.maxPlayers) or 0
+					if maxPlayers > 0 and playing < maxPlayers then
+						table.insert(candidates, tostring(srv.id))
+					end
+				end
+			end
+			if #candidates > 0 then
+				targetServerId = candidates[math.random(1, #candidates)]
+			end
+		end
+	end)
+
+	local ok, err = pcall(function()
+		if targetServerId then
+			TeleportService:TeleportToPlaceInstance(placeId, targetServerId, LocalPlayer)
+		else
+			TeleportService:Teleport(placeId, LocalPlayer)
+		end
+	end)
+
+	if not ok then
+		configStatusLbl.Text = "Server Hop error: " .. tostring(err)
+	end
+end
+
+makeActionBtn(confiPage, "Server Hop (Cambiar Servidor)", performServerHop)
+
 local function serializeState()
 	return {
 		ThemeIndex = State.ThemeIndex,
+		SkyboxName = State.SkyboxName,
 		SpeedEnabled = State.SpeedEnabled,
 		CustomSpeed = State.CustomSpeed,
 		InfinityJump = State.InfinityJump,
+		Noclip = State.Noclip,
 		ESPRoles = State.ESPRoles,
 		CamLockEnabled = State.CamLockEnabled,
 		AutoKillEnabled = State.AutoKillEnabled,
@@ -1922,7 +2439,11 @@ local function serializeState()
 		HitboxSize = State.HitboxSize,
 		HitboxTransparency = State.HitboxTransparency,
 		SelectedMapIndex = State.SelectedMapIndex,
-		AutoVoteMap = State.AutoVoteMap
+		AutoVoteMap = State.AutoVoteMap,
+		ShowFloatCamLock = State.ShowFloatCamLock,
+		ShowFloatAutoKill = State.ShowFloatAutoKill,
+		ShowFloatFly = State.ShowFloatFly,
+		ShowFloatNoclip = State.ShowFloatNoclip
 	}
 end
 
@@ -1935,10 +2456,29 @@ local function applyLoadedConfig(data)
 	end
 
 	applyTheme(State.ThemeIndex)
+	applySkyboxByName(State.SkyboxName)
 	applyFPSBoost(State.FPSBoost)
+	setFlyState(State.FlyEnabled)
+	setNoclipState(State.Noclip)
+
+	floatCamLockBtn.Visible = State.ShowFloatCamLock
+	floatAutoKillBtn.Visible = State.ShowFloatAutoKill
+	floatFlyBtn.Visible = State.ShowFloatFly
+	floatNoclipBtn.Visible = State.ShowFloatNoclip
+
+	local skyIdx = 1
+	for i, n in ipairs(SkyboxNames) do
+		if n == State.SkyboxName then
+			skyIdx = i
+			break
+		end
+	end
+
 	if Ctrl.ThemeSelector then Ctrl.ThemeSelector.setIndex(State.ThemeIndex, false) end
+	if Ctrl.SkyboxSelector then Ctrl.SkyboxSelector.setIndex(skyIdx, false) end
 	if Ctrl.Speed then Ctrl.Speed.setState(State.SpeedEnabled, State.CustomSpeed, false) end
 	if Ctrl.InfinityJump then Ctrl.InfinityJump.setValue(State.InfinityJump, false) end
+	if Ctrl.Noclip then Ctrl.Noclip.setValue(State.Noclip, false) end
 	if Ctrl.ESPRoles then Ctrl.ESPRoles.setValue(State.ESPRoles, false) end
 	if Ctrl.CamLockEnabled then Ctrl.CamLockEnabled.setValue(State.CamLockEnabled, false) end
 	if Ctrl.AutoKillEnabled then Ctrl.AutoKillEnabled.setValue(State.AutoKillEnabled, false) end
@@ -1954,6 +2494,15 @@ local function applyLoadedConfig(data)
 	if Ctrl.HitboxTransparency then Ctrl.HitboxTransparency.setValue(State.HitboxTransparency, false) end
 	if Ctrl.SelectedMapIndex then Ctrl.SelectedMapIndex.setIndex(State.SelectedMapIndex, false) end
 	if Ctrl.AutoVoteMap then Ctrl.AutoVoteMap.setValue(State.AutoVoteMap, false) end
+	if Ctrl.ShowFloatCamLock then Ctrl.ShowFloatCamLock.setValue(State.ShowFloatCamLock, false) end
+	if Ctrl.ShowFloatAutoKill then Ctrl.ShowFloatAutoKill.setValue(State.ShowFloatAutoKill, false) end
+	if Ctrl.ShowFloatFly then Ctrl.ShowFloatFly.setValue(State.ShowFloatFly, false) end
+	if Ctrl.ShowFloatNoclip then Ctrl.ShowFloatNoclip.setValue(State.ShowFloatNoclip, false) end
+
+	refreshCamLockFloat(State.CamLockEnabled)
+	refreshAutoKillFloat(State.AutoKillEnabled)
+	refreshFlyFloat(State.FlyEnabled)
+	refreshNoclipFloat(State.Noclip)
 
 	hitboxDirty = true
 	if not State.ESPRoles then clearESP() else updateESPRoles() end
@@ -2000,6 +2549,7 @@ end)
 makeActionBtn(confiPage, "Desactivar Todo y Restaurar", function()
 	State.SpeedEnabled = false
 	State.InfinityJump = false
+	State.Noclip = false
 	State.ESPRoles = false
 	State.CamLockEnabled = false
 	State.AutoKillEnabled = false
@@ -2011,6 +2561,10 @@ makeActionBtn(confiPage, "Desactivar Todo y Restaurar", function()
 	State.AntiAFK = false
 	State.HitboxExpander = false
 	State.AutoVoteMap = false
+	State.SkyboxName = "Default Sky"
+	setFlyState(false)
+	setNoclipState(false)
+	applySkyboxByName("Default Sky")
 	applyFPSBoost(false)
 	applyLoadedConfig(State)
 	clearESP()
@@ -2018,6 +2572,21 @@ makeActionBtn(confiPage, "Desactivar Todo y Restaurar", function()
 	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
 	if hum then hum.WalkSpeed = State.DefaultSpeed end
 	configStatusLbl.Text = "Funciones desactivadas y valores restaurados"
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+	clearFlyPhysics()
+	hitboxDirty = true
+	if State.FlyEnabled then
+		task.defer(function()
+			setFlyState(true)
+		end)
+	end
+	if State.Noclip then
+		task.defer(function()
+			applyNoclipStep(newChar)
+		end)
+	end
 end)
 
 selectTab("Home")
@@ -2075,16 +2644,21 @@ RunService.RenderStepped:Connect(function(dt)
 		hum.WalkSpeed = State.CustomSpeed
 	end
 
-	if root and State.FlyEnabled then
-		local moveDir = hum and hum.MoveDirection or Vector3.zero
-		local vertical = 0
-		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
-		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vertical -= 1 end
-		root.AssemblyLinearVelocity = Vector3.new(
-			moveDir.X * State.FlySpeed,
-			vertical * State.FlySpeed,
-			moveDir.Z * State.FlySpeed
-		)
+	if root and hum and State.FlyEnabled then
+		local lv = ensureFlyPhysics(root, hum)
+		if lv then
+			local moveDir = hum.MoveDirection or Vector3.zero
+			local vertical = 0
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vertical -= 1 end
+			lv.VectorVelocity = Vector3.new(
+				moveDir.X * State.FlySpeed,
+				vertical * State.FlySpeed,
+				moveDir.Z * State.FlySpeed
+			)
+		end
+	elseif flyLinearVel then
+		clearFlyPhysics()
 	end
 
 	if State.AutoGrabGun and root then
@@ -2115,7 +2689,6 @@ RunService.RenderStepped:Connect(function(dt)
 		runAutoKillStep(char, hum, root)
 	end
 
-	-- CamLock: bloquea la cámara al Murder solo con la gun y sin obstáculos entre cámara y objetivo
 	if State.CamLockEnabled and Camera and root then
 		if hasGunEquippedOrOwned() then
 			local torsoPart, _, murderChar = getMurderTorsoPart()
@@ -2137,7 +2710,7 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 
-	if State.ESPRoles and (now - lastEspUpdate) >= 0.15 then
+	if State.ESPRoles and (now - lastEspUpdate) >= 0.20 then
 		lastEspUpdate = now
 		pcall(updateESPRoles)
 	end
