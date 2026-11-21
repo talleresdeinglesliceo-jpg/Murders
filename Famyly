@@ -1,4 +1,4 @@
--- Heaven HUD | Murder Mystery 2 Full UI & Framework
+-- Family HUD | Murder Mystery 2 Full UI & Framework
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -13,8 +13,8 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = Workspace.CurrentCamera
 
-if PlayerGui:FindFirstChild("HeavenHUD") then
-	PlayerGui.HeavenHUD:Destroy()
+if PlayerGui:FindFirstChild("FamilyHUD") then
+	PlayerGui.FamilyHUD:Destroy()
 end
 
 local DiscordInviteUrl = "https://discord.gg/TgpqVgWmt"
@@ -105,7 +105,7 @@ local Themes = {
 		PillGradEnd = Color3.fromRGB(10, 132, 255)
 	},
 	{
-		Name = "Heaven Frost",
+		Name = "Family Frost",
 		MainBg = Color3.fromRGB(16, 22, 30),
 		SidebarBg = Color3.fromRGB(12, 17, 24),
 		CardBg = Color3.fromRGB(25, 34, 46),
@@ -161,7 +161,7 @@ local Themes = {
 }
 
 local MapsList = { "House", "Factory", "Office", "Bank", "Mil Base", "Bio Lab" }
-local ConfigFileName = "HeavenHUD_Config.json"
+local ConfigFileName = "FamilyHUD_Config.json"
 local MemoryConfigBackup = nil
 
 local State = {
@@ -170,10 +170,9 @@ local State = {
 	CustomSpeed = 28,
 	DefaultSpeed = 16,
 	InfinityJump = false,
-	ESPPlayers = true,
 	ESPRoles = false,
-	ESPGunDrop = false,
 	CamLockEnabled = false,
+	AutoKillEnabled = false,
 	AutoShotMurder = false,
 	SilentAimAccuracy = 100,
 	AutoGrabGun = true,
@@ -398,7 +397,7 @@ local function applyTheme(themeIndex)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "HeavenHUD"
+ScreenGui.Name = "FamilyHUD"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = PlayerGui
@@ -426,7 +425,7 @@ registerColor(PillBadge, "BackgroundColor3", "AccentBtn")
 local PillLogoIcon = Instance.new("TextLabel")
 PillLogoIcon.Size = UDim2.new(1, 0, 1, 0)
 PillLogoIcon.BackgroundTransparency = 1
-PillLogoIcon.Text = "H"
+PillLogoIcon.Text = "F"
 PillLogoIcon.TextSize = 13
 PillLogoIcon.Font = Enum.Font.GothamBold
 PillLogoIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -436,7 +435,7 @@ local PillTitle = Instance.new("TextLabel")
 PillTitle.Size = UDim2.new(1, -84, 0, 16)
 PillTitle.Position = UDim2.new(0, 43, 0, 6)
 PillTitle.BackgroundTransparency = 1
-PillTitle.Text = "Murder Mystery 2  •  Heaven HUD"
+PillTitle.Text = "Murder Mystery 2  •  Family HUD"
 PillTitle.TextSize = 12
 PillTitle.Font = Enum.Font.GothamBold
 PillTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -532,7 +531,7 @@ registerColor(TopBadge, "BackgroundColor3", "AccentBtn")
 local TitleIcon = Instance.new("TextLabel")
 TitleIcon.Size = UDim2.new(1, 0, 1, 0)
 TitleIcon.BackgroundTransparency = 1
-TitleIcon.Text = "H"
+TitleIcon.Text = "F"
 TitleIcon.TextSize = 12
 TitleIcon.Font = Enum.Font.GothamBold
 TitleIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -542,7 +541,7 @@ local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, -155, 0, 18)
 TitleLabel.Position = UDim2.new(0, 48, 0, 8)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "Murder Mystery 2  •  Heaven HUD"
+TitleLabel.Text = "Murder Mystery 2  •  Family HUD"
 TitleLabel.TextSize = 14
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1385,18 +1384,20 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ==========================================
--- 2. PESTAÑA: ESP & UTILIDADES DE ROLES
+-- 2. UTILIDADES DE ROLES, VISIBILIDAD Y COMBATE
 -- ==========================================
+local RoleColors = {
+	Murder = Color3.fromRGB(235, 64, 52),
+	Sheriff = Color3.fromRGB(52, 134, 235),
+	Innocent = Color3.fromRGB(52, 199, 89)
+}
+
 local function clearESP()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr.Character then
-			local hl = plr.Character:FindFirstChild("HeavenESP")
+			local hl = plr.Character:FindFirstChild("FamilyRoleESP")
 			if hl then hl:Destroy() end
 		end
-	end
-	local droppedGun = Workspace:FindFirstChild("GunDrop", true)
-	if droppedGun and droppedGun:FindFirstChild("HeavenGunESP") then
-		droppedGun.HeavenGunESP:Destroy()
 	end
 end
 
@@ -1420,7 +1421,7 @@ local function getRoleType(plr)
 	return "Innocent"
 end
 
-local function hasGunEquippedOrOwned()
+local function getEquippedOrOwnedGun()
 	local char = LocalPlayer.Character
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
 	local function isGunTool(obj)
@@ -1430,15 +1431,39 @@ local function hasGunEquippedOrOwned()
 	end
 	if char then
 		for _, child in ipairs(char:GetChildren()) do
-			if isGunTool(child) then return true, child end
+			if isGunTool(child) then return child end
 		end
 	end
 	if backpack then
 		for _, child in ipairs(backpack:GetChildren()) do
-			if isGunTool(child) then return true, child end
+			if isGunTool(child) then return child end
 		end
 	end
-	return false, nil
+	return nil
+end
+
+local function getEquippedOrOwnedKnife()
+	local char = LocalPlayer.Character
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	local function isKnifeTool(obj)
+		if not obj or not obj:IsA("Tool") then return false end
+		return string.find(string.lower(obj.Name), "knife") ~= nil
+	end
+	if char then
+		for _, child in ipairs(char:GetChildren()) do
+			if isKnifeTool(child) then return child end
+		end
+	end
+	if backpack then
+		for _, child in ipairs(backpack:GetChildren()) do
+			if isKnifeTool(child) then return child end
+		end
+	end
+	return nil
+end
+
+local function hasGunEquippedOrOwned()
+	return getEquippedOrOwnedGun() ~= nil
 end
 
 local function getMurderTorsoPart()
@@ -1451,12 +1476,99 @@ local function getMurderTorsoPart()
 					or char:FindFirstChild("UpperTorso")
 					or char:FindFirstChild("Torso")
 				if torso and torso:IsA("BasePart") then
-					return torso, plr
+					return torso, plr, char
 				end
 			end
 		end
 	end
-	return nil, nil
+	return nil, nil, nil
+end
+
+local function isPartVisibleFromCamera(targetPart, targetChar)
+	if not Camera or not targetPart then return false end
+	local origin = Camera.CFrame.Position
+	local delta = targetPart.Position - origin
+	local distance = delta.Magnitude
+	if distance <= 0.1 then return true end
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	local ignoreList = {}
+	if LocalPlayer.Character then
+		table.insert(ignoreList, LocalPlayer.Character)
+	end
+	if targetChar then
+		table.insert(ignoreList, targetChar)
+	end
+	rayParams.FilterDescendantsInstances = ignoreList
+
+	local result = Workspace:Raycast(origin, delta.Unit * distance, rayParams)
+	return result == nil
+end
+
+local function getAliveTargetsInMatch()
+	local targets = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local char = plr.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if char and hum and hum.Health > 0 and root then
+				table.insert(targets, { player = plr, char = char, hum = hum, root = root })
+			end
+		end
+	end
+	return targets
+end
+
+local autoKillIndex = 1
+local lastAutoKillStep = 0
+
+local function runAutoKillStep(myChar, myHum, myRoot)
+	if not State.AutoKillEnabled or not myChar or not myHum or not myRoot or myHum.Health <= 0 then
+		return
+	end
+	local now = os.clock()
+	if (now - lastAutoKillStep) < 0.12 then
+		return
+	end
+
+	local gunTool = getEquippedOrOwnedGun()
+	local knifeTool = getEquippedOrOwnedKnife()
+
+	if gunTool then
+		if gunTool.Parent ~= myChar and myHum then
+			pcall(function() myHum:EquipTool(gunTool) end)
+		end
+		local murderTorso = getMurderTorsoPart()
+		if murderTorso then
+			lastAutoKillStep = now
+			pcall(function()
+				myRoot.CFrame = murderTorso.CFrame * CFrame.new(0, 0, 3.5)
+			end)
+		end
+		return
+	end
+
+	if knifeTool then
+		if knifeTool.Parent ~= myChar and myHum then
+			pcall(function() myHum:EquipTool(knifeTool) end)
+		end
+		local targets = getAliveTargetsInMatch()
+		if #targets > 0 then
+			if autoKillIndex > #targets then
+				autoKillIndex = 1
+			end
+			local chosen = targets[autoKillIndex]
+			autoKillIndex += 1
+			if chosen and chosen.root then
+				lastAutoKillStep = now
+				pcall(function()
+					myRoot.CFrame = chosen.root.CFrame * CFrame.new(0, 0, 3)
+				end)
+			end
+		end
+	end
 end
 
 local function getSilentAimTorsoPosition()
@@ -1494,26 +1606,16 @@ pcall(function()
 	end
 end)
 
-local function updateESP()
+local function updateESPRoles()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer and plr.Character then
-			local existing = plr.Character:FindFirstChild("HeavenESP")
-			if State.ESPPlayers then
+			local existing = plr.Character:FindFirstChild("FamilyRoleESP")
+			if State.ESPRoles then
 				local hl = existing or Instance.new("Highlight")
-				hl.Name = "HeavenESP"
+				hl.Name = "FamilyRoleESP"
 				hl.Adornee = plr.Character
-				if State.ESPRoles then
-					local role = getRoleType(plr)
-					if role == "Murder" then
-						hl.FillColor = Color3.fromRGB(235, 64, 52)
-					elseif role == "Sheriff" then
-						hl.FillColor = Color3.fromRGB(52, 134, 235)
-					else
-						hl.FillColor = Color3.fromRGB(52, 199, 89)
-					end
-				else
-					hl.FillColor = Color3.fromRGB(255, 255, 255)
-				end
+				local role = getRoleType(plr)
+				hl.FillColor = RoleColors[role] or RoleColors.Innocent
 				hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 				hl.FillTransparency = 0.45
 				hl.OutlineTransparency = 0
@@ -1523,55 +1625,47 @@ local function updateESP()
 			end
 		end
 	end
-
-	local gunPart = Workspace:FindFirstChild("GunDrop", true)
-	if gunPart and gunPart:IsA("BasePart") then
-		local gunHl = gunPart:FindFirstChild("HeavenGunESP")
-		if State.ESPGunDrop then
-			if not gunHl then
-				gunHl = Instance.new("Highlight")
-				gunHl.Name = "HeavenGunESP"
-				gunHl.Adornee = gunPart
-				gunHl.FillColor = Color3.fromRGB(255, 214, 10)
-				gunHl.OutlineColor = Color3.fromRGB(255, 255, 255)
-				gunHl.FillTransparency = 0.25
-				gunHl.Parent = gunPart
-			end
-		elseif gunHl then
-			gunHl:Destroy()
-		end
-	end
 end
 
-_, Ctrl.ESPPlayers = createToggleCard(espPage, "ESP Players", "", State.ESPPlayers, function(v)
-	State.ESPPlayers = v
-	if not v then clearESP() end
-end)
-
-_, Ctrl.ESPRoles = createToggleCard(espPage, "ESP Roles", "Rojo=Murder | Azul=Sheriff | Verde=Inocente", State.ESPRoles, function(v)
-	State.ESPRoles = v
-end)
-
-_, Ctrl.ESPGunDrop = createToggleCard(espPage, "ESP Gun Drop", "Marca dónde cayó la pistola", State.ESPGunDrop, function(v)
-	State.ESPGunDrop = v
-	if not v then
-		local gunPart = Workspace:FindFirstChild("GunDrop", true)
-		if gunPart and gunPart:FindFirstChild("HeavenGunESP") then
-			gunPart.HeavenGunESP:Destroy()
+-- ==========================================
+-- 3. PESTAÑA: ESP (SOLO ROLES)
+-- ==========================================
+_, Ctrl.ESPRoles = createToggleCard(
+	espPage,
+	"ESP Roles",
+	"Rojo=Murder | Azul=Sheriff | Verde=Inocente",
+	State.ESPRoles,
+	function(v)
+		State.ESPRoles = v
+		if not v then
+			clearESP()
+		else
+			pcall(updateESPRoles)
 		end
 	end
-end)
+)
 
 -- ==========================================
--- 3. PESTAÑA: MURDER & SHERIFF
+-- 4. PESTAÑA: MURDER & SHERIFF
 -- ==========================================
 _, Ctrl.CamLockEnabled = createToggleCard(
 	msPage,
 	"CamLock",
-	"Bloquea la cámara al Murder cuando tienes la gun",
+	"Bloquea la cámara al Murder con la gun si no hay paredes u objetos",
 	State.CamLockEnabled,
 	function(v)
 		State.CamLockEnabled = v
+	end
+)
+
+_, Ctrl.AutoKillEnabled = createToggleCard(
+	msPage,
+	"AutoKill",
+	"Con Gun: TP detrás del Murder | Con Cuchillo: TP a jugadores vivos",
+	State.AutoKillEnabled,
+	function(v)
+		State.AutoKillEnabled = v
+		autoKillIndex = 1
 	end
 )
 
@@ -1586,14 +1680,9 @@ end)
 makeActionBtn(msPage, "TP detrás del Murder", function()
 	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 	if not myRoot then return end
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer and getRoleType(plr) == "Murder" and plr.Character then
-			local mRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-			if mRoot then
-				myRoot.CFrame = mRoot.CFrame * CFrame.new(0, 0, 4)
-				break
-			end
-		end
+	local mRoot = getMurderTorsoPart()
+	if mRoot then
+		myRoot.CFrame = mRoot.CFrame * CFrame.new(0, 0, 4)
 	end
 end)
 
@@ -1612,7 +1701,7 @@ makeActionBtn(msPage, "TP detrás del Sheriff", function()
 end)
 
 -- ==========================================
--- 4. PESTAÑA: AUTOMÁTICO
+-- 5. PESTAÑA: AUTOMÁTICO
 -- ==========================================
 _, Ctrl.AutoShotMurder = createToggleCard(
 	autoPage,
@@ -1664,55 +1753,107 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ==========================================
--- 5. PESTAÑA: HITBOX
+-- 6. PESTAÑA: HITBOX (OPTIMIZADO)
 -- ==========================================
+local OriginalHitboxSizes = setmetatable({}, { __mode = "k" })
+local hitboxDirty = true
+
+local function restoreSingleHitbox(hrp)
+	if not hrp or not hrp:IsA("BasePart") then return end
+	local origSize = OriginalHitboxSizes[hrp] or Vector3.new(2, 2, 1)
+	pcall(function()
+		hrp.Size = origSize
+		hrp.Transparency = 1
+		hrp.CanCollide = false
+		hrp.Massless = false
+	end)
+end
+
 local function resetHitboxes()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer and plr.Character then
 			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
 			if hrp then
-				hrp.Size = Vector3.new(2, 2, 1)
-				hrp.Transparency = 1
-				hrp.CanCollide = false
+				restoreSingleHitbox(hrp)
 			end
 		end
 	end
+	hitboxDirty = false
 end
 
 local function updateHitboxes()
+	local targetVec = Vector3.new(State.HitboxSize, State.HitboxSize, State.HitboxSize)
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= LocalPlayer and plr.Character then
 			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-			if hrp then
+			if hrp and hrp:IsA("BasePart") then
+				if OriginalHitboxSizes[hrp] == nil then
+					OriginalHitboxSizes[hrp] = hrp.Size
+				end
 				if State.HitboxExpander then
-					hrp.Size = Vector3.new(State.HitboxSize, State.HitboxSize, State.HitboxSize)
-					hrp.Transparency = State.HitboxTransparency
-					hrp.CanCollide = false
+					pcall(function()
+						hrp.CanCollide = false
+						hrp.Massless = true
+						if hrp.Size ~= targetVec then
+							hrp.Size = targetVec
+						end
+						if hrp.Transparency ~= State.HitboxTransparency then
+							hrp.Transparency = State.HitboxTransparency
+						end
+					end)
 				else
-					hrp.Size = Vector3.new(2, 2, 1)
-					hrp.Transparency = 1
-					hrp.CanCollide = false
+					restoreSingleHitbox(hrp)
 				end
 			end
 		end
 	end
+	hitboxDirty = false
 end
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function()
+		hitboxDirty = true
+	end)
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+	if plr ~= LocalPlayer then
+		plr.CharacterAdded:Connect(function()
+			hitboxDirty = true
+		end)
+	end
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+	if plr.Character then
+		local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			OriginalHitboxSizes[hrp] = nil
+		end
+	end
+	hitboxDirty = true
+end)
 
 _, Ctrl.HitboxExpander = createToggleCard(hitboxPage, "Hitbox Expander", "Funciona con cuchillo y pistola | Sin CanCollide", State.HitboxExpander, function(v)
 	State.HitboxExpander = v
-	if not v then resetHitboxes() end
+	hitboxDirty = true
+	if not v then resetHitboxes() else updateHitboxes() end
 end)
 
 _, Ctrl.HitboxSize = createSliderCard(hitboxPage, "Tamaño Hitbox", 2, 30, State.HitboxSize, 0, function(val)
 	State.HitboxSize = val
+	hitboxDirty = true
+	if State.HitboxExpander then updateHitboxes() end
 end)
 
 _, Ctrl.HitboxTransparency = createSliderCard(hitboxPage, "Transparencia", 0, 1, State.HitboxTransparency, 2, function(val)
 	State.HitboxTransparency = val
+	hitboxDirty = true
+	if State.HitboxExpander then updateHitboxes() end
 end)
 
 -- ==========================================
--- 6. PESTAÑA: VOTAR MAPA
+-- 7. PESTAÑA: VOTAR MAPA
 -- ==========================================
 _, Ctrl.SelectedMapIndex = createSelectorCard(votePage, "Seleccionar Mapa", MapsList, State.SelectedMapIndex, function(idx)
 	State.SelectedMapIndex = idx
@@ -1729,7 +1870,7 @@ createInfoCard(
 )
 
 -- ==========================================
--- 7. PESTAÑA: CONFI
+-- 8. PESTAÑA: CONFI
 -- ==========================================
 local themeNames = {}
 for i, t in ipairs(Themes) do
@@ -1766,10 +1907,9 @@ local function serializeState()
 		SpeedEnabled = State.SpeedEnabled,
 		CustomSpeed = State.CustomSpeed,
 		InfinityJump = State.InfinityJump,
-		ESPPlayers = State.ESPPlayers,
 		ESPRoles = State.ESPRoles,
-		ESPGunDrop = State.ESPGunDrop,
 		CamLockEnabled = State.CamLockEnabled,
+		AutoKillEnabled = State.AutoKillEnabled,
 		AutoShotMurder = State.AutoShotMurder,
 		SilentAimAccuracy = State.SilentAimAccuracy,
 		FPSBoost = State.FPSBoost,
@@ -1799,10 +1939,9 @@ local function applyLoadedConfig(data)
 	if Ctrl.ThemeSelector then Ctrl.ThemeSelector.setIndex(State.ThemeIndex, false) end
 	if Ctrl.Speed then Ctrl.Speed.setState(State.SpeedEnabled, State.CustomSpeed, false) end
 	if Ctrl.InfinityJump then Ctrl.InfinityJump.setValue(State.InfinityJump, false) end
-	if Ctrl.ESPPlayers then Ctrl.ESPPlayers.setValue(State.ESPPlayers, false) end
 	if Ctrl.ESPRoles then Ctrl.ESPRoles.setValue(State.ESPRoles, false) end
-	if Ctrl.ESPGunDrop then Ctrl.ESPGunDrop.setValue(State.ESPGunDrop, false) end
 	if Ctrl.CamLockEnabled then Ctrl.CamLockEnabled.setValue(State.CamLockEnabled, false) end
+	if Ctrl.AutoKillEnabled then Ctrl.AutoKillEnabled.setValue(State.AutoKillEnabled, false) end
 	if Ctrl.AutoShotMurder then Ctrl.AutoShotMurder.setValue(State.AutoShotMurder, false) end
 	if Ctrl.FPSBoost then Ctrl.FPSBoost.setValue(State.FPSBoost, false) end
 	if Ctrl.AutoGrabGun then Ctrl.AutoGrabGun.setValue(State.AutoGrabGun, false) end
@@ -1816,8 +1955,9 @@ local function applyLoadedConfig(data)
 	if Ctrl.SelectedMapIndex then Ctrl.SelectedMapIndex.setIndex(State.SelectedMapIndex, false) end
 	if Ctrl.AutoVoteMap then Ctrl.AutoVoteMap.setValue(State.AutoVoteMap, false) end
 
-	if not State.ESPPlayers and not State.ESPGunDrop then clearESP() end
-	if not State.HitboxExpander then resetHitboxes() end
+	hitboxDirty = true
+	if not State.ESPRoles then clearESP() else updateESPRoles() end
+	if not State.HitboxExpander then resetHitboxes() else updateHitboxes() end
 	return true
 end
 
@@ -1860,10 +2000,9 @@ end)
 makeActionBtn(confiPage, "Desactivar Todo y Restaurar", function()
 	State.SpeedEnabled = false
 	State.InfinityJump = false
-	State.ESPPlayers = false
 	State.ESPRoles = false
-	State.ESPGunDrop = false
 	State.CamLockEnabled = false
+	State.AutoKillEnabled = false
 	State.AutoShotMurder = false
 	State.FPSBoost = false
 	State.AutoGrabGun = false
@@ -1883,7 +2022,22 @@ end)
 
 selectTab("Home")
 
--- Loop principal
+-- Caché de monedas para evitar escaneos pesados cada frame
+local cachedCoins = {}
+local lastCoinScan = 0
+local lastEspUpdate = 0
+
+local function refreshCoinCache()
+	local list = {}
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") and (string.lower(obj.Name) == "coin_server" or string.find(string.lower(obj.Name), "coin")) then
+			table.insert(list, obj)
+		end
+	end
+	cachedCoins = list
+end
+
+-- Loop principal optimizado
 local frameCounter = 0
 local elapsedStats = 0
 local currentFPS = 60
@@ -1912,11 +2066,12 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 
+	local now = os.clock()
 	local char = LocalPlayer.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 
-	if hum and State.SpeedEnabled then
+	if hum and State.SpeedEnabled and hum.WalkSpeed ~= State.CustomSpeed then
 		hum.WalkSpeed = State.CustomSpeed
 	end
 
@@ -1940,19 +2095,31 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 
 	if State.FarmCoins and root then
-		for _, obj in ipairs(Workspace:GetDescendants()) do
-			if obj:IsA("BasePart") and (string.lower(obj.Name) == "coin_server" or string.find(string.lower(obj.Name), "coin")) then
-				if (obj.Position - root.Position).Magnitude <= 35 then
-					safeTouch(obj, root)
+		if (now - lastCoinScan) >= 1.5 or #cachedCoins == 0 then
+			lastCoinScan = now
+			refreshCoinCache()
+		end
+		for i = #cachedCoins, 1, -1 do
+			local coinPart = cachedCoins[i]
+			if coinPart and coinPart.Parent then
+				if (coinPart.Position - root.Position).Magnitude <= 35 then
+					safeTouch(coinPart, root)
 				end
+			else
+				table.remove(cachedCoins, i)
 			end
 		end
 	end
 
+	if State.AutoKillEnabled and char and hum and root then
+		runAutoKillStep(char, hum, root)
+	end
+
+	-- CamLock: bloquea la cámara al Murder solo con la gun y sin obstáculos entre cámara y objetivo
 	if State.CamLockEnabled and Camera and root then
 		if hasGunEquippedOrOwned() then
-			local torsoPart = getMurderTorsoPart()
-			if torsoPart then
+			local torsoPart, _, murderChar = getMurderTorsoPart()
+			if torsoPart and isPartVisibleFromCamera(torsoPart, murderChar) then
 				pcall(function()
 					Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, torsoPart.Position)
 				end)
@@ -1970,10 +2137,12 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 
-	if State.ESPPlayers or State.ESPGunDrop then
-		pcall(updateESP)
+	if State.ESPRoles and (now - lastEspUpdate) >= 0.15 then
+		lastEspUpdate = now
+		pcall(updateESPRoles)
 	end
-	if State.HitboxExpander then
+
+	if State.HitboxExpander and hitboxDirty then
 		pcall(updateHitboxes)
 	end
 end)
